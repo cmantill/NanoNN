@@ -3,6 +3,8 @@ import awkward
 from uproot_methods import TLorentzVectorArray
 from collections import Counter
 
+# indexes to jet: FatJetPFCands_jetIdx is FatJetPFCands_fatJetIdx 
+# indexes to PF collection: FatJetPFCands.pFCandsIdx
 
 class ParticleNetTagInfoMaker(object):
 
@@ -11,7 +13,6 @@ class ParticleNetTagInfoMaker(object):
         self.pfcand_branch = pfcand_branch
         self.fatjetpf_branch = fatpfcand_branch
         self.sv_branch = sv_branch
-        self.idx_branch = self.fatjetpf_branch+'_pFCandsIdx'
         self.jet_r2 = jetR * jetR
 
     def _finalize_data(self, data):
@@ -21,18 +22,20 @@ class ParticleNetTagInfoMaker(object):
     def _make_pfcands(self, table):
         data = {}
 
-        c = Counter((self.cand_parents.offsets[:-1] + self.cand_parents).content)
+        cand_parents =  table[self.fatjetpf_branch + '_jetIdx']
+        c = Counter((cand_parents.offsets[:-1] + cand_parents).content)
         jet_cand_counts = awkward.JaggedArray.fromcounts(self.jetp4.counts, [c[k] for k in sorted(c.keys())])
-        jet_cand_idxs = table[self.idx_branch]
+        jet_cand_idxs = table[self.fatjetpf_branch + '_pFCandsIdx']
 
         def pf(var_name):
-            if var_name[:4] == 'btag' and self.idx_branch in table:
+            branch_name = self.pfcand_branch + '_' + var_name
+            if var_name[:4] == 'btag':
                 branch_name = self.fatjetpf_branch + '_' + var_name 
-                cand_arr = table[branch_name]
-            else:
-                branch_name = self.pfcand_branch + '_' + var_name
-                cand_arr = table[branch_name]
-                cand_arr = cand_arr[jet_cand_idxs]
+            cand_arr = table[branch_name]
+            print('jet pt ', table[self.fatjet_branch + '_pt'][77331])
+            print('jetp4 counts ', self.jetp4.counts[77331])
+            print('cand arr ', branch_name, cand_arr[77331])
+            cand_arr = cand_arr[jet_cand_idxs]
             return jet_cand_counts.copy(content=awkward.JaggedArray.fromcounts(jet_cand_counts.content, cand_arr.content))
 
         data['pfcand_VTX_ass'] = pf('pvAssocQuality')
@@ -40,6 +43,10 @@ class ParticleNetTagInfoMaker(object):
         data['pfcand_quality'] = pf('trkQuality')
 
         pdgId = pf('pdgId')
+        print(table[self.fatjet_branch + '_pt'][77331])
+        print(table[self.pfcand_branch + '_pdgId'][77331])
+        #print(pf('pdgId'))
+        print(np.abs(pdgId) == 11)
         charge = pf('charge')
         data['pfcand_isEl'] = np.abs(pdgId) == 11
         data['pfcand_isMu'] = np.abs(pdgId) == 13
@@ -50,11 +57,6 @@ class ParticleNetTagInfoMaker(object):
 
         dz = pf('dz')
         dxy = pf('d0')
-#         ### FIXME ###
-#         is_neutral = np.logical_or(charge.content == 0, np.logical_and(dz.content == -1.0, dxy.content == -1.0))
-#         dz.content[is_neutral] = 0
-#         dxy.content[is_neutral] = 0
-#         ### FIXME ###
         data['pfcand_dz'] = dz
         data['pfcand_dxy'] = dxy
         data['pfcand_dzsig'] = dz / pf('dzErr')
@@ -125,23 +127,19 @@ class ParticleNetTagInfoMaker(object):
 
     def convert(self, table):
         self.data = {}
+        self.mask_jetpt = (table[self.fatjet_branch + '_pt'] > 170)
         self.jetp4 = TLorentzVectorArray.from_ptetaphim(
             table[self.fatjet_branch + '_pt'],
             table[self.fatjet_branch + '_eta'],
             table[self.fatjet_branch + '_phi'],
             table[self.fatjet_branch + '_mass'],
-            )
+            )[table[self.fatjet_branch + '_pt'] > 170]
+        print('jpt ',table[self.fatjet_branch + '_pt'][77331])
+        print('jpt ',table[self.fatjet_branch + '_pt'][self.mask_jetpt][77331])
         self.eta_sign = self.jetp4.eta.ones_like()
         self.eta_sign[self.jetp4.eta <= 0] = -1
-        self.cand_parents = table[self.fatjetpf_branch + '_jetIdx']
-
-        check = False
-        for i in range(self.jetp4.counts[0]):
-            if not (self.cand_parents[0]==i).any(): check = True
-        if check: return None
-
-        self._make_pfcands(table)
-        self._make_sv(table)
+        self._make_pfcands(table[self.mask_jetpt])
+        self._make_sv(table[self.mask_jetpt])
         self.data['_jetp4'] = self.jetp4
         return self.data
 
