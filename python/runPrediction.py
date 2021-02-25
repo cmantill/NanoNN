@@ -4,10 +4,6 @@ import awkward
 import onnxruntime
 import json
 
-from .makeInputs import ParticleNetTagInfoMaker
-from .nnHelper import convert_prob
-
-
 def _pad(a, min_length, max_length, value=0, dtype='float32'):
     if len(a) > max_length:
         return a[:max_length].astype(dtype)
@@ -21,12 +17,13 @@ def _pad(a, min_length, max_length, value=0, dtype='float32'):
 
 class ParticleNetJetTagsProducer(object):
 
-    def __init__(self, model_path, preprocess_path, debug=False):
+    def __init__(self, preprocess_path, model_path=None, debug=False):
         self.debug = debug
         with open(preprocess_path) as fp:
             self.prep_params = json.load(fp)
-        print('Loading model %s' % model_path)
-        self.sess = onnxruntime.InferenceSession(model_path)
+        if model_path:
+            print('Loading model %s' % model_path)
+            self.sess = onnxruntime.InferenceSession(model_path)
 
     def _preprocess(self, taginfo, eval_flags=None):
         data = {}
@@ -50,7 +47,21 @@ class ParticleNetJetTagsProducer(object):
                 data[group_name].append(a.astype('float32'))
             data[group_name] = np.nan_to_num(np.stack(data[group_name], axis=1))
         return data, counts
-    
+
+    def pad_one(self, taginfo,  event_idx, jet_idx):
+        data = {}
+        for group_name in self.prep_params['input_names']:
+            data[group_name] = []
+            info = self.prep_params[group_name]
+            for var in info['var_names']:
+                a = taginfo[var][event_idx][jet_idx]
+                a = _pad(a, min_length=info['var_length'], max_length=info['var_length'])
+                if self.debug:
+                    print(var, a)
+                data[group_name].append(a.astype('float32'))
+            data[group_name] = np.nan_to_num(np.expand_dims(np.stack(data[group_name], axis=0), 0))
+        return data
+
     def predict(self, taginfo, eval_flags=None):
         data, counts = self._preprocess(taginfo, eval_flags)
         preds = self.sess.run([], data)[0]
@@ -87,27 +98,29 @@ if __name__ == '__main__':
     parser.add_argument('-i', '--input')
     parser.add_argument('-m', '--model')
     parser.add_argument('-p', '--preprocess')
-    parser.add_argument('-n', '--fatjet-name', default='FatJet')
     parser.add_argument('--make_baseline', action='store_true')
     args = parser.parse_args()
 
-    p = ParticleNetTagInfoMaker(fatjet_branch=args.fatjet_name)
+    from PhysicsTools.NanoNN.makeInputs import ParticleNetTagInfoMaker
+    from PhysicsTools.NanoNN.nnHelper import convert_prob
+
+    fatjet_name = 'FatJet'
+    p = ParticleNetTagInfoMaker(fatjet_branch='FatJet', pfcand_branch='PFCands', sv_branch='SV', fatpfcand_branch='FatJetPFCands', jetR=0.8)
     tree = uproot.open(args.input)['Events']
-    table = tree.arrays([args.fatjet_name + '*', 'PFCands*', 'SV*'], namedecode='utf-8')
+    table = tree.arrays(['FatJet_pt','FatJet_eta', 'FatJet_phi', 'FatJet_mass', 'FatJet_msoftdrop', '*FatJetPFCands*', 'PFCands*', 'SV*',
+                         'FatJet_particleNetMD_Xbb'],
+                        namedecode='utf-8', entrystart=1, entrystop=2)
     start = time.time()
     taginfo = p.convert(table)
     diff = time.time() - start
     print('--- Convert inputs: %f s total, %f s per jet ---' % (diff, diff / taginfo['pfcand_mask'].counts.sum()))
-#     for k in taginfo:
-#         print(k, taginfo[k])
-
-#     jetmass = tree.array('FatJet_msoftdrop')
-#     eval_flags = (jetmass > 50) * (jetmass < 200)
-#     jetmass = jetmass[eval_flags]
+    # jetmass = tree.array('FatJet_msoftdrop')
+    # eval_flags = (jetmass > 50) * (jetmass < 200)
+    # jetmass = jetmass[eval_flags]
     eval_flags = None
 
     start = time.time()
-    nn = ParticleNetJetTagsProducer(args.model, args.preprocess)
+    nn = ParticleNetJetTagsProducer(args.preprocess, args.model)
     diff = time.time() - start
     print('--- Setup model: %f s total' % (diff,))
 
@@ -115,19 +128,19 @@ if __name__ == '__main__':
     outputs = nn.predict(taginfo, eval_flags)
     diff = time.time() - start
     print('--- Run prediction: %f s total, %f s per jet ---' % (diff, diff / outputs['probQCDbb'].counts.sum()))
-#     print(outputs)
-#     for k in outputs:
-#         print(k, outputs[k].content.mean())
+    # print(outputs)
+    # for k in outputs:
+    #  print(k, outputs[k].content.mean())
 
-    if args.fatjet_name + '_ParticleNetMD_probXbb' in table:
+    if fatjet_name + '_particleNetMD_Xbb' in table:
         print('Compare w/ stored values')
-        print('Stored values:\n ...', table[args.fatjet_name + '_ParticleNetMD_probXbb'][:5])
+        print('Stored values:\n ...', table[fatjet_name + '_particleNetMD_Xbb'][:5])
         print('Computed values:\n ...', outputs['probXbb'][:5])
         print('Diff (50%, 95%, 99%, 100%) = ',
-              np.percentile(np.abs(outputs['probXbb'] - table[args.fatjet_name + '_ParticleNetMD_probXbb']).content, [50, 95, 99, 100])
+              np.percentile(np.abs(outputs['probXbb'] - table[fatjet_name + '_particleNetMD_Xbb']).content, [50, 95, 99, 100])
               )
 
-#     assert(np.array_equal(jetmass.counts, outputs['probQCDbb'].counts))
+    # assert(np.array_equal(jetmass.counts, outputs['probQCDbb'].counts))
     alloutputs = awkward.JaggedArray.zip(outputs)
     if args.make_baseline:
         with open('baseline.awkd', 'wb') as fout:

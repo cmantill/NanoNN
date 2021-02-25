@@ -18,26 +18,22 @@ class ParticleNetTagInfoMaker(object):
           for k in data:
                data[k] = data[k].astype('float32')
 
-     def _mask(self, arr):
-          #array = arr[self.maskEntries][self.mask_jetpt]
-          array = arr[self.mask_jetpt]
-          return array
+     def _get_array(self, table, arr):
+          mask = ((table[self.fatjet_branch + '_pt'] > 300) & (table[self.fatjet_branch + '_msoftdrop'] > 0)).any()
+          return table[arr][mask]
 
      def _make_pfcands(self,table):
           data = {}
-          cand_parents = table[self.fatjetpf_branch + '_jetIdx']#[self.maskEntries]
-          #c = Counter((cand_parents.offsets[:-1] + cand_parents).content)
-          #jet_cand_counts = awkward.JaggedArray.fromcounts(self.jetp4.counts, [c[k] for k in sorted(c.keys())])
-          jet_cand_idxs = table[self.fatjetpf_branch + '_pFCandsIdx']#[self.maskEntries]
+          cand_parents = self._get_array(table,self.fatjetpf_branch + '_jetIdx')
+          jet_cand_idxs = self._get_array(table,self.fatjetpf_branch + '_pFCandsIdx')
 
           def pf(var_name):
                branch_name = self.pfcand_branch + '_' + var_name
                if var_name[:4] == 'btag':
                     branch_name = self.fatjetpf_branch + '_' + var_name
-               cand_arr = table[branch_name]#[self.maskEntries]
+               cand_arr = self._get_array(table,branch_name)
                cand_arr = cand_arr[jet_cand_idxs]
                return awkward.JaggedArray.fromiter([awkward.JaggedArray.fromparents(idx, a) if len(idx) else [] for idx, a in zip(cand_parents, cand_arr)])
-               #return jet_cand_counts.copy(content=awkward.JaggedArray.fromcounts(jet_cand_counts.content, cand_arr.content))
 
           data['pfcand_VTX_ass'] = pf('pvAssocQuality')
           data['pfcand_lostInnerHits'] = pf('lostInnerHits')
@@ -84,17 +80,17 @@ class ParticleNetTagInfoMaker(object):
      def _make_sv(self, table):
           data = {}
           all_svp4 = TLorentzVectorArray.from_ptetaphim(
-               table[self.sv_branch + '_pt'],#[self.maskEntries],
-               table[self.sv_branch + '_eta'],#[self.maskEntries],
-               table[self.sv_branch + '_phi'],#[self.maskEntries],
-               table[self.sv_branch + '_mass']#[self.maskEntries],
+               self._get_array(table,self.sv_branch + '_pt'),
+               self._get_array(table,self.sv_branch + '_eta'),
+               self._get_array(table,self.sv_branch + '_phi'),
+               self._get_array(table,self.sv_branch + '_mass'),
           )
           
           jet_cross_sv = self.jetp4.cross(all_svp4, nested=True)
           match = jet_cross_sv.i0.delta_r2(jet_cross_sv.i1) < self.jet_r2
 
           def sv(var_name):
-              sv_arr = table[self.sv_branch + '_' + var_name]#[self.maskEntries]
+              sv_arr =  self._get_array(table,self.sv_branch + '_' + var_name)
               return self.jetp4.eta.cross(sv_arr, nested=True).unzip()[1][match]
               
           svp4 = TLorentzVectorArray.from_ptetaphim(sv('pt'), sv('eta'), sv('phi'), sv('mass'))
@@ -122,29 +118,36 @@ class ParticleNetTagInfoMaker(object):
           self._finalize_data(data)
           self.data.update(data)
           
-     def convert(self,table,entriesRange=None):
+     def _make_jet(self, table):
+          from PhysicsTools.NanoNN.nnHelper import convert_prob
+          data = {}
+          deepTag = {}
+          deepTag['probH'] = self._get_array(table, self.fatjet_branch + '_deepTag_H')
+          deepTag['probQCD'] = self._get_array(table, self.fatjet_branch + '_deepTag_QCD')
+          deepTag['probQCDothers'] = self._get_array(table, self.fatjet_branch + '_deepTag_QCDothers')
+          data['_jet_deepTagHvsQCD'] = convert_prob(deepTag, ['H'], prefix='prob', bkgs=['QCD','QCDothers'])
+          data['_jet_deepTagMD_H4qvsQCD'] = self._get_array(table, self.fatjet_branch + '_deepTagMD_H4qvsQCD')
+          data['_jet_lsf3'] =  self._get_array(table, self.fatjet_branch + '_lsf3')
+
+          self._finalize_data(data)
+          self.data.update(data)
+
+     def convert(self,table,is_input=False):
           self.data = {}
-          if entriesRange:
-               self.maskEntries = entriesRange
-               self.mask_jetpt = (table[self.fatjet_branch + '_pt'][self.maskEntries] > 170)
-               self.jetp4 = TLorentzVectorArray.from_ptetaphim(
-                    self._mask(table[self.fatjet_branch + '_pt']),
-                    self._mask(table[self.fatjet_branch + '_eta']),
-                    self._mask(table[self.fatjet_branch + '_phi']),
-                    self._mask(table[self.fatjet_branch + '_mass']),
-               )
-          else:
-               self.mask_jetpt = (table[self.fatjet_branch + '_pt'] > 170)
-               self.jetp4 = TLorentzVectorArray.from_ptetaphim(
-                    self._mask(table[self.fatjet_branch + '_pt']),
-                    self._mask(table[self.fatjet_branch + '_eta']),
-                    self._mask(table[self.fatjet_branch + '_phi']),
-                    self._mask(table[self.fatjet_branch + '_mass']),
-               )
+          self.jetp4 = TLorentzVectorArray.from_ptetaphim(
+               self._get_array(table, self.fatjet_branch + '_pt'),
+               self._get_array(table, self.fatjet_branch + '_eta'),
+               self._get_array(table, self.fatjet_branch + '_phi'),
+               self._get_array(table, self.fatjet_branch + '_mass'),
+          )
           self.eta_sign = self.jetp4.eta.ones_like()
           self.eta_sign[self.jetp4.eta <= 0] = -1
           
           self._make_pfcands(table)
           self._make_sv(table)
           self.data['_jetp4'] = self.jetp4
+
+          if is_input:
+               self._make_jet(table)
+
           return self.data
