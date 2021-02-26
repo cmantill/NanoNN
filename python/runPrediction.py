@@ -51,15 +51,14 @@ class ParticleNetJetTagsProducer(object):
     def pad_one(self, taginfo,  event_idx, jet_idx):
         data = {}
         for group_name in self.prep_params['input_names']:
-            data[group_name] = []
+            data[group_name] = {}
             info = self.prep_params[group_name]
             for var in info['var_names']:
                 a = taginfo[var][event_idx][jet_idx]
                 a = _pad(a, min_length=info['var_length'], max_length=info['var_length'])
                 if self.debug:
                     print(var, a)
-                data[group_name].append(a.astype('float32'))
-            data[group_name] = np.nan_to_num(np.expand_dims(np.stack(data[group_name], axis=0), 0))
+                data[group_name][var] = a.astype('float32')
         return data
 
     def predict(self, taginfo, eval_flags=None):

@@ -126,10 +126,44 @@ class ParticleNetTagInfoMaker(object):
           deepTag['probQCD'] = self._get_array(table, self.fatjet_branch + '_deepTag_QCD')
           deepTag['probQCDothers'] = self._get_array(table, self.fatjet_branch + '_deepTag_QCDothers')
           data['_jet_deepTagHvsQCD'] = convert_prob(deepTag, ['H'], prefix='prob', bkgs=['QCD','QCDothers'])
-          data['_jet_deepTagMD_H4qvsQCD'] = self._get_array(table, self.fatjet_branch + '_deepTagMD_H4qvsQCD')
-          data['_jet_lsf3'] =  self._get_array(table, self.fatjet_branch + '_lsf3')
 
           self._finalize_data(data)
+
+          data['_isHiggs'] = np.any(np.abs(self._get_array(table,'GenPart_pdgId')==25)[0]).astype('int')
+          data['_isTop'] = np.any(np.abs(self._get_array(table,'GenPart_pdgId')==6)[0]).astype('int')
+
+          if data['_isHiggs'] > 0:
+               def getBosons(table):
+                    mask = (np.abs(self._get_array(table, 'GenPart_pdgId')) == 25) & (self._get_array(table, 'GenPart_status')==22)
+                    idxs = np.where(mask.flatten())
+                    vs = TLorentzVectorArray.from_ptetaphim(
+                         self._get_array(table, 'GenPart_pt')[mask],
+                         self._get_array(table, 'GenPart_eta')[mask],
+                         self._get_array(table, 'GenPart_phi')[mask],
+                         self._get_array(table, 'GenPart_mass')[mask],
+                    )
+                    return idxs,vs
+                    
+               genHidx, genH = getBosons(table)
+               jet_cross_genH = self.data['_jetp4'].cross(genH, nested=True)
+               match = jet_cross_genH.i0.delta_r2(jet_cross_genH.i1) < (0.8*0.8)
+               print(genHidx)
+
+               def getWs(table,mother):
+                    mask = (np.abs(self._get_array(table, 'GenPart_pdgId')) == 24)
+                    print( self._get_array(table, 'GenPart_genPartIdxMother'))
+                    print(mother)
+                    idxs = np.where(mask.flatten())
+                    vs = TLorentzVectorArray.from_ptetaphim(
+                         self._get_array(table, 'GenPart_pt')[mask],
+                         self._get_array(table, 'GenPart_eta')[mask],
+                         self._get_array(table, 'GenPart_phi')[mask],
+                         self._get_array(table, 'GenPart_mass')[mask],
+                    )
+                    return idxs,vs
+                    
+               genWidx, genW = getWs(table,genHidx)
+
           self.data.update(data)
 
      def convert(self,table,is_input=False):
@@ -140,6 +174,8 @@ class ParticleNetTagInfoMaker(object):
                self._get_array(table, self.fatjet_branch + '_phi'),
                self._get_array(table, self.fatjet_branch + '_mass'),
           )
+          print(self.jetp4)
+          print(table[self.fatjet_branch + '_pt'])
           self.eta_sign = self.jetp4.eta.ones_like()
           self.eta_sign[self.jetp4.eta <= 0] = -1
           

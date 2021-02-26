@@ -1,6 +1,7 @@
 {
   "input_names": [
-    "pf_features"
+    "pf_features",
+    "sv_features"
   ],
   "pf_features": {
     "var_length": 50,
@@ -24,6 +25,23 @@
       "pfcand_dzsig",
       "pfcand_dxy",
       "pfcand_dxysig"
+    ]
+  },
+  "sv_features": {
+    "var_length": 5,
+    "var_names": [
+      "sv_pt_log",
+      "sv_mass",
+      "sv_etarel",
+      "sv_phirel",
+      "sv_abseta",
+      "sv_ntracks",
+      "sv_normchi2",
+      "sv_dxy",
+      "sv_dxysig",
+      "sv_d3d",
+      "sv_d3dsig",
+      "sv_costhetasvpv"
     ]
   }
 }
