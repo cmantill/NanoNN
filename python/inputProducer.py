@@ -47,8 +47,6 @@ class InputProducer(Module):
           self.out.branch("fj_nProngs", "I", 1)
           self.out.branch("fj_dR_W", "F", 1)
           self.out.branch("fj_dR_Wstar", "F", 1)
-          #self.out.branch("fj_glep_dR_W", "F", 1)
-          #self.out.branch("fj_glep_dR_Wstar", "F", 1)
 
           for key in self.pf_names:
                self.out.branch(key, "F", self.n_pf)
@@ -102,8 +100,6 @@ class InputProducer(Module):
                     self.out.fillBranch("fj_nProngs", self.tagInfo["_jet_nProngs"][0][idx])
                     self.out.fillBranch("fj_dR_W", self.tagInfo["_jet_dR_W"][0][idx])
                     self.out.fillBranch("fj_dR_Wstar", self.tagInfo["_jet_dR_Wstar"][0][idx])
-                    #self.out.fillBranch("fj_glep_dR_W", self.tagInfo["_jet_glep_dR_W"][0][idx])
-                    #self.out.fillBranch("fj_glep_dR_Wstar", self.tagInfo["_jet_glep_dR_Wstar"][0][idx])
 
                     for key in self.pf_names:
                          self.out.fillBranch(key, outputs['pf_features'][key])

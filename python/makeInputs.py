@@ -139,8 +139,6 @@ class ParticleNetTagInfoMaker(object):
           self.data['_jet_nProngs'] = jpt.zeros_like().astype('int')
           self.data['_jet_dR_W'] = jpt.zeros_like()
           self.data['_jet_dR_Wstar'] = jpt.zeros_like()
-          #self.data['_jet_glep_dR_W'] = jpt.zeros_like()
-          #self.data['_jet_glep_dR_Wstar'] = jpt.zeros_like()
 
           if data['_isHiggs'] > 0:
                gen = {'mom': self._get_array(table, 'GenPart_genPartIdxMother'),
@@ -195,7 +193,6 @@ class ParticleNetTagInfoMaker(object):
                     mask_mu = (pdgid==13) | (pdgid==14)
                     mask_tau = (pdgid==15) | (pdgid==16)
                     mask_q = (pdgid<=5)
-                    #mask_lep = (pdgid==11) | (pdgid==13) | (pdgid==15)
                     vs = TLorentzVectorArray.from_ptetaphim(
                          gen['pt'][maskd],
                          gen['eta'][maskd],
@@ -226,14 +223,6 @@ class ParticleNetTagInfoMaker(object):
                          gen['phi'][maskd][mask_q],
                          gen['mass'][maskd][mask_q],
                     )
-                    '''
-                    vs_lep = TLorentzVectorArray.from_ptetaphim(
-                         gen['pt'][maskd][mask_lep],
-                         gen['eta'][maskd][mask_lep],
-                         gen['phi'][maskd][mask_lep],
-                         gen['mass'][maskd][mask_lep],
-                    )
-                    '''
                     return vs,vs_ele,vs_mu,vs_tau,vs_q
 
                # finding Higgs
@@ -260,8 +249,6 @@ class ParticleNetTagInfoMaker(object):
                     if(matchD_ele.any() or matchD_mu.any() or matchD_tau.any()):
                          self.data['_jet_H_WW_elenuqq'] = matchD_ele.astype('int')
                          self.data['_jet_H_WW_munuqq'] = matchD_mu.astype('int')
-                         #self.data['_jet_glep_dR_W'] = genD_lep.delta_r2(genW[:,0])
-                         #self.data['_jet_glep_dR_Wstar'] = genD_lep.delta_r2(genW[:,1])
                     else:
                          self.data['_jet_H_WW_4q'] = matchD_q.any().astype('int')
 
