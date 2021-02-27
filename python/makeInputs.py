@@ -133,36 +133,83 @@ class ParticleNetTagInfoMaker(object):
           data['_isTop'] = np.any(np.abs(self._get_array(table,'GenPart_pdgId')==6)[0]).astype('int')
 
           if data['_isHiggs'] > 0:
-               def getBosons(table):
-                    mask = (np.abs(self._get_array(table, 'GenPart_pdgId')) == 25) & (self._get_array(table, 'GenPart_status')==22)
-                    idxs = np.where(mask.flatten())
-                    vs = TLorentzVectorArray.from_ptetaphim(
-                         self._get_array(table, 'GenPart_pt')[mask],
-                         self._get_array(table, 'GenPart_eta')[mask],
-                         self._get_array(table, 'GenPart_phi')[mask],
-                         self._get_array(table, 'GenPart_mass')[mask],
-                    )
-                    return idxs,vs
-                    
-               genHidx, genH = getBosons(table)
-               jet_cross_genH = self.data['_jetp4'].cross(genH, nested=True)
-               match = jet_cross_genH.i0.delta_r2(jet_cross_genH.i1) < (0.8*0.8)
-               print(genHidx)
+               gen = {'mom': self._get_array(table, 'GenPart_genPartIdxMother'),
+                      'id': np.abs(self._get_array(table, 'GenPart_pdgId')),
+                      'pt': self._get_array(table, 'GenPart_pt'),
+                      'eta': self._get_array(table, 'GenPart_eta'),
+                      'phi': self._get_array(table, 'GenPart_phi'),
+                      'mass': self._get_array(table, 'GenPart_mass'),
+                      'status': self._get_array(table, 'GenPart_status'),
+                 }
 
-               def getWs(table,mother):
-                    mask = (np.abs(self._get_array(table, 'GenPart_pdgId')) == 24)
-                    print( self._get_array(table, 'GenPart_genPartIdxMother'))
-                    print(mother)
+               def getBosons(gen,idp=25):
+                    mask = (gen['id'] == idp) & (gen['status']==22)
                     idxs = np.where(mask.flatten())
                     vs = TLorentzVectorArray.from_ptetaphim(
-                         self._get_array(table, 'GenPart_pt')[mask],
-                         self._get_array(table, 'GenPart_eta')[mask],
-                         self._get_array(table, 'GenPart_phi')[mask],
-                         self._get_array(table, 'GenPart_mass')[mask],
+                         gen['pt'][mask],
+                         gen['eta'][mask],
+                         gen['phi'][mask],
+                         gen['mass'][mask],
                     )
-                    return idxs,vs
+                    return idxs[0],vs
                     
-               genWidx, genW = getWs(table,genHidx)
+               def getWs(gen,mom):
+                    genpartmom = gen['mom']
+                    mask = (gen['id'] == 24) & (awkward.JaggedArray.fromiter([np.isin(genpartmom[index],mom) for index in range(len(genpartmom))]))
+                    idxs = np.where(mask.flatten())
+                    vs = TLorentzVectorArray.from_ptetaphim(
+                         gen['pt'][mask],
+                         gen['eta'][mask],
+                         gen['phi'][mask],
+                         gen['mass'][mask],
+                    )
+                    return idxs[0],vs
+
+               def getWdaus(gen,mothers):
+                    genpartmom = gen['mom']
+                    mask = (awkward.JaggedArray.fromiter([np.isin(genpartmom[index],mothers) for index in range(len(genpartmom))])) & (gen['id'] != 24) & (gen['id'] != 22)
+                    if not mask.any():
+                         print('h')
+                    #mask_ele = (np.abs(self._get_array(table, 'GenPart_pdgId')) == 11) | (np.abs(self._get_array(table, 'GenPart_pdgId')) == 12) 
+                    #mask_mu = (np.abs(self._get_array(table, 'GenPart_pdgId')) == 13) | (np.abs(self._get_array(table, 'GenPart_pdgId')) == 14)
+                    #mask_q = (np.abs(self._get_array(table, 'GenPart_pdgId')) <= 5)
+                    idxs = np.where(mask.flatten())
+                    vs = TLorentzVectorArray.from_ptetaphim(
+                         gen['pt'][mask],
+                         gen['eta'][mask],
+                         gen['phi'][mask],
+                         gen['mass'][mask],
+                    )
+                    print(gen['id'][mask])
+                    return idxs,vs
+
+               # fill data w. nones
+               jpt = self._get_array(table, self.fatjet_branch + '_pt')
+               self.data['_jet_H_WW_4q'] = jpt.zeros_like().astype('int')
+               self.data['_jet_H_WW_elenuqq'] = jpt.zeros_like().astype('int')
+               self.data['_jet_H_WW_munuqq'] = jpt.zeros_like().astype('int')
+               self.data['_jet_nProngs'] = jpt.zeros_like().astype('int')
+               self.data['_jet_dR_W'] = jpt.zeros_like()
+               self.data['_jet_dR_Wstar'] = jpt.zeros_like()
+
+               # now let's look at parts
+               genHidx, genH = getBosons(gen)
+               jet_cross_genH = self.data['_jetp4'].cross(genH, nested=True)
+               matchH = jet_cross_genH.i0.delta_r2(jet_cross_genH.i1) < self.jet_r2
+               fj_isH =  matchH.any().astype('int')
+
+               for idx,gH in enumerate(genHidx):
+                    if idx not in fj_isH.flatten(): continue
+                    genWidx, genW = getWs(gen,genHidx[idx])
+                    jet_cross_genW = self.data['_jetp4'].cross(genW, nested=True)
+                    matchW = jet_cross_genW.i0.delta_r2(jet_cross_genW.i1) < self.jet_r2
+                    fj_isHWW = matchW.all().astype('int')
+
+                    genDpdgID, genD = getWdaus(gen,genWidx)
+                    jet_cross_genD = self.data['_jetp4'].cross(genD, nested=True)
+                    matchD = jet_cross_genD.i0.delta_r2(jet_cross_genD.i1) < self.jet_r2
+                    print('match D',matchD)
+
 
           self.data.update(data)
 
@@ -174,8 +221,6 @@ class ParticleNetTagInfoMaker(object):
                self._get_array(table, self.fatjet_branch + '_phi'),
                self._get_array(table, self.fatjet_branch + '_mass'),
           )
-          print(self.jetp4)
-          print(table[self.fatjet_branch + '_pt'])
           self.eta_sign = self.jetp4.eta.ones_like()
           self.eta_sign[self.jetp4.eta <= 0] = -1
           

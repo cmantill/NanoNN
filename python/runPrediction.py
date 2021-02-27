@@ -48,13 +48,13 @@ class ParticleNetJetTagsProducer(object):
             data[group_name] = np.nan_to_num(np.stack(data[group_name], axis=1))
         return data, counts
 
-    def pad_one(self, taginfo,  event_idx, jet_idx):
+    def pad_one(self, taginfo, jet_idx):
         data = {}
         for group_name in self.prep_params['input_names']:
             data[group_name] = {}
             info = self.prep_params[group_name]
             for var in info['var_names']:
-                a = taginfo[var][event_idx][jet_idx]
+                a = taginfo[var][0][jet_idx]
                 a = _pad(a, min_length=info['var_length'], max_length=info['var_length'])
                 if self.debug:
                     print(var, a)

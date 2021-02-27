@@ -5,15 +5,12 @@ import ROOT
 ROOT.PyConfig.IgnoreCommandLineOptions = True
 import numpy as np
 from collections import Counter
-from uproot_methods import TLorentzVectorArray
 
 from PhysicsTools.NanoAODTools.postprocessing.framework.datamodel import Collection, Object
 from PhysicsTools.NanoAODTools.postprocessing.framework.eventloop import Module
 
 from PhysicsTools.NanoNN.makeInputs import ParticleNetTagInfoMaker
 from PhysicsTools.NanoNN.runPrediction import ParticleNetJetTagsProducer
-
-from uproot_methods import TLorentzVectorArray
 
 class InputProducer(Module):
 
@@ -59,67 +56,6 @@ class InputProducer(Module):
      def endFile(self, inputFile, outputFile, inputTree, wrappedOutputTree):
           pass
 
-     def _get_gen(self, event):
-          ''' 
-          Loop over gen particles.
-          Find Higgs boson, the W daughters and its daughters.
-          @return TLorentzVectorArray of Higgs, W's and quarks in event.
-          '''
-          gen = {}
-          genparts = Collection(event, "GenPart")
-
-          # find the higgs
-          gpt = []; geta = []; gphi = []; gmass = []; motheridx = [];
-          for ig, gpart in enumerate(genparts):
-               if (gpart.pdgId == 25 and gpart.status==22):
-                    motheridx.append(ig)
-                    gpt.append(gpart.pt); geta.append(gpart.eta); gphi.append(gpart.phi); gmass.append(gpart.mass)
-
-          gen['Higgs'] = TLorentzVectorArray.from_ptetaphim(gpt, geta, gphi, gmass)
-          
-          for im,mom in enumerate(motheridx):
-               # find the Ws
-               gpt = []; geta = []; gphi = []; gmass = []; dauidx = [];
-               for ig, gpart in enumerate(genparts):
-                    if gpart.genPartIdxMother == mom and abs(gpart.pdgId)==24:
-                         dauidx.append(ig)
-                         gpt.append(gpart.pt); geta.append(gpart.eta); gphi.append(gpart.phi); gmass.append(gpart.mass)
-                    if len(dauidx)>0:
-                         if gpart.genPartIdxMother==dauidx[0] and gpart.pdgId==genparts[dauidx[0]].pdgId:
-                              gpt[0] = gpart.pt; geta[0] = gpart.eta; gphi[0] = gpart.phi; gmass[0] = gpart.mass;
-                    if len(dauidx)>1:
-                         if gpart.genPartIdxMother==dauidx[1] and gpart.pdgId==genparts[dauidx[1]].pdgId:
-                              gpt[1] = gpart.pt; geta[1] = gpart.eta; gphi[1] = gpart.phi; gmass[1] = gpart.mass;
-               gen['Ws_%i'%im] =  TLorentzVectorArray.from_ptetaphim(gpt, geta, gphi, gmass)
-
-               # find the next daughters
-               def searchForWMom(thispart, partlist, stopids):
-                    if thispart.genPartIdxMother in stopids:
-                         return thispart.genPartIdxMother
-                    elif thispart.genPartIdxMother >= 0:
-                         return searchForWMom(partlist[thispart.genPartIdxMother], partlist, stopids)
-                    else:
-                         return -1
-
-               nEle = 0; nMu=0;
-               if len(dauidx)>1:
-                    for ig, gpart in enumerate(genparts):
-                         matchidx = searchForWMom(gpart, genparts, dauidx)
-                         if matchidx==dauidx[0] and abs(gpart.pdgId) in [11,13,15]:
-                              if abs(gpart.pdgId) == 11:
-                                   nEle = nEle + 1
-                              elif abs(gpart.pdgId) == 13:
-                                   nMu = nMu + 1
-                         if matchidx==dauidx[1] and abs(gpart.pdgId) in [11,13,15]:
-                              if abs(gpart.pdgId) == 11:
-                                   nEle = nEle + 1
-                              elif abs(gpart.pdgId) == 13:
-                                   nMu = nMu + 1
-               #gen['dauW_%i'%im] = TLorentzVectorArray.from_ptetaphim(gpt, geta, gphi, gmass)
-
-               print(nEle,nMu)
-          return gen
-
      def analyze(self, event, ievent):
           absolute_event_idx = event._entry if event._tree._entrylist is None else event._tree._entrylist.GetEntry(event._entry)
           event._allFatJets = Collection(event, "FatJet")
@@ -142,7 +78,7 @@ class InputProducer(Module):
                if idx>1 : continue
                fj.idx = idx
                fj = event._allFatJets[idx]
-               outputs = self.pnTagger.pad_one(self.tagInfo, absolute_event_idx, idx)
+               outputs = self.pnTagger.pad_one(self.tagInfo, idx)
                if outputs:
                     self.out.fillBranch("fj_idx", fj.idx)
                     self.out.fillBranch("fj_pt", fj.pt)
@@ -167,14 +103,6 @@ class InputProducer(Module):
                     fj_nProngs = 0
                     fj_dR_W = 0.
                     fj_dR_Wstar = 0.
-                    if isHiggs:
-                         #print( self.gen['Higgs'] )
-                         print( self.tagInfo['_jetp4'][idx] )
-                         #jet_cross_genH = self.tagInfo['_jetp4'].cross(self.gen['Higgs'], nested=True)
-                         #match = jet_cross_genH.i0.delta_r2(jet_cross_genH.i1) < (0.8*0.8)
-                         #print(match)
-
-
 
                     self.out.fillBranch("fj_H_WW_4q", fj_H_WW_4q)
                     self.out.fillBranch("fj_H_WW_elenuqq", fj_H_WW_elenuqq)
