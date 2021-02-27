@@ -47,6 +47,8 @@ class InputProducer(Module):
           self.out.branch("fj_nProngs", "I", 1)
           self.out.branch("fj_dR_W", "F", 1)
           self.out.branch("fj_dR_Wstar", "F", 1)
+          #self.out.branch("fj_glep_dR_W", "F", 1)
+          #self.out.branch("fj_glep_dR_Wstar", "F", 1)
 
           for key in self.pf_names:
                self.out.branch(key, "F", self.n_pf)
@@ -66,8 +68,6 @@ class InputProducer(Module):
                                                  'GenPart_*'],
                                                 namedecode='utf-8', entrystart=absolute_event_idx, entrystop=absolute_event_idx+1) 
                self.tagInfo = self.tagInfoMaker.convert(table,True)
-               #if self.tagInfo['_isHiggs']:
-               #     self.gen = self._get_gen(event)
                return True
           else:
                return False
@@ -91,25 +91,19 @@ class InputProducer(Module):
                                                                                                                                                                
                     isHiggs = self.tagInfo['_isHiggs']
                     isTop = self.tagInfo['_isTop']
-                    if isHiggs==0 and isTop==0: 
-                         isQCD = 1
+                    if(isHiggs==0 and isTop==0): isQCD = 1
                     else: isQCD = 0
                     self.out.fillBranch("fj_isQCD", isQCD)
                     self.out.fillBranch("fj_isTop", isTop)
 
-                    fj_H_WW_4q = 0
-                    fj_H_WW_elenuqq = 0
-                    fj_H_WW_munuqq = 0
-                    fj_nProngs = 0
-                    fj_dR_W = 0.
-                    fj_dR_Wstar = 0.
-
-                    self.out.fillBranch("fj_H_WW_4q", fj_H_WW_4q)
-                    self.out.fillBranch("fj_H_WW_elenuqq", fj_H_WW_elenuqq)
-                    self.out.fillBranch("fj_H_WW_munuqq", fj_H_WW_munuqq)
-                    self.out.fillBranch("fj_nProngs", fj_nProngs)
-                    self.out.fillBranch("fj_dR_W", fj_dR_W)
-                    self.out.fillBranch("fj_dR_Wstar", fj_dR_Wstar)
+                    self.out.fillBranch("fj_H_WW_4q", self.tagInfo["_jet_H_WW_4q"][0][idx])
+                    self.out.fillBranch("fj_H_WW_elenuqq", self.tagInfo["_jet_H_WW_elenuqq"][0][idx])
+                    self.out.fillBranch("fj_H_WW_munuqq", self.tagInfo["_jet_H_WW_munuqq"][0][idx])
+                    self.out.fillBranch("fj_nProngs", self.tagInfo["_jet_nProngs"][0][idx])
+                    self.out.fillBranch("fj_dR_W", self.tagInfo["_jet_dR_W"][0][idx])
+                    self.out.fillBranch("fj_dR_Wstar", self.tagInfo["_jet_dR_Wstar"][0][idx])
+                    #self.out.fillBranch("fj_glep_dR_W", self.tagInfo["_jet_glep_dR_W"][0][idx])
+                    #self.out.fillBranch("fj_glep_dR_Wstar", self.tagInfo["_jet_glep_dR_Wstar"][0][idx])
 
                     for key in self.pf_names:
                          self.out.fillBranch(key, outputs['pf_features'][key])

@@ -132,6 +132,16 @@ class ParticleNetTagInfoMaker(object):
           data['_isHiggs'] = np.any(np.abs(self._get_array(table,'GenPart_pdgId')==25)[0]).astype('int')
           data['_isTop'] = np.any(np.abs(self._get_array(table,'GenPart_pdgId')==6)[0]).astype('int')
 
+          jpt = self._get_array(table, self.fatjet_branch + '_pt')
+          self.data['_jet_H_WW_4q'] = jpt.zeros_like().astype('int')
+          self.data['_jet_H_WW_elenuqq'] = jpt.zeros_like().astype('int')
+          self.data['_jet_H_WW_munuqq'] = jpt.zeros_like().astype('int')
+          self.data['_jet_nProngs'] = jpt.zeros_like().astype('int')
+          self.data['_jet_dR_W'] = jpt.zeros_like()
+          self.data['_jet_dR_Wstar'] = jpt.zeros_like()
+          #self.data['_jet_glep_dR_W'] = jpt.zeros_like()
+          #self.data['_jet_glep_dR_Wstar'] = jpt.zeros_like()
+
           if data['_isHiggs'] > 0:
                gen = {'mom': self._get_array(table, 'GenPart_genPartIdxMother'),
                       'id': np.abs(self._get_array(table, 'GenPart_pdgId')),
@@ -142,6 +152,11 @@ class ParticleNetTagInfoMaker(object):
                       'status': self._get_array(table, 'GenPart_status'),
                  }
 
+               def match(genP):
+                    jet_cross_genP = self.data['_jetp4'].cross(genP, nested=True)
+                    matchP = jet_cross_genP.i0.delta_r2(jet_cross_genP.i1) < self.jet_r2
+                    return matchP
+                    
                def getBosons(gen,idp=25):
                     mask = (gen['id'] == idp) & (gen['status']==22)
                     idxs = np.where(mask.flatten())
@@ -167,49 +182,88 @@ class ParticleNetTagInfoMaker(object):
 
                def getWdaus(gen,mothers):
                     genpartmom = gen['mom']
-                    mask = (awkward.JaggedArray.fromiter([np.isin(genpartmom[index],mothers) for index in range(len(genpartmom))])) & (gen['id'] != 24) & (gen['id'] != 22)
-                    if not mask.any():
-                         print('h')
-                    #mask_ele = (np.abs(self._get_array(table, 'GenPart_pdgId')) == 11) | (np.abs(self._get_array(table, 'GenPart_pdgId')) == 12) 
-                    #mask_mu = (np.abs(self._get_array(table, 'GenPart_pdgId')) == 13) | (np.abs(self._get_array(table, 'GenPart_pdgId')) == 14)
-                    #mask_q = (np.abs(self._get_array(table, 'GenPart_pdgId')) <= 5)
-                    idxs = np.where(mask.flatten())
+                    mask = (awkward.JaggedArray.fromiter([np.isin(genpartmom[index],mothers) for index in range(len(genpartmom))])) 
+                    genW = mask & (gen['id'] == 24)
+                    if genW.any():
+                         idxs = np.where(genW.flatten())[0]
+                         maskd = (awkward.JaggedArray.fromiter([np.isin(genpartmom[index],idxs)  for index in range(len(genpartmom))]))
+                    else:
+                         maskd = mask & (gen['id'] != 24) & (gen['id'] != 22)
+                         idxs = np.where(maskd.flatten())
+                    pdgid = gen['id'][maskd]
+                    mask_ele = (pdgid==11) | (pdgid==12)
+                    mask_mu = (pdgid==13) | (pdgid==14)
+                    mask_tau = (pdgid==15) | (pdgid==16)
+                    mask_q = (pdgid<=5)
+                    #mask_lep = (pdgid==11) | (pdgid==13) | (pdgid==15)
                     vs = TLorentzVectorArray.from_ptetaphim(
-                         gen['pt'][mask],
-                         gen['eta'][mask],
-                         gen['phi'][mask],
-                         gen['mass'][mask],
+                         gen['pt'][maskd],
+                         gen['eta'][maskd],
+                         gen['phi'][maskd],
+                         gen['mass'][maskd],
                     )
-                    print(gen['id'][mask])
-                    return idxs,vs
+                    vs_ele = TLorentzVectorArray.from_ptetaphim(
+                         gen['pt'][maskd][mask_ele],
+                         gen['eta'][maskd][mask_ele],
+                         gen['phi'][maskd][mask_ele],
+                         gen['mass'][maskd][mask_ele],
+                    )
+                    vs_mu = TLorentzVectorArray.from_ptetaphim(
+                         gen['pt'][maskd][mask_mu],
+                         gen['eta'][maskd][mask_mu],
+                         gen['phi'][maskd][mask_mu],
+                         gen['mass'][maskd][mask_mu],
+                    )
+                    vs_tau = TLorentzVectorArray.from_ptetaphim(
+                         gen['pt'][maskd][mask_tau],
+                         gen['eta'][maskd][mask_tau],
+                         gen['phi'][maskd][mask_tau],
+                         gen['mass'][maskd][mask_tau],
+                    )
+                    vs_q = TLorentzVectorArray.from_ptetaphim(
+                         gen['pt'][maskd][mask_q],
+                         gen['eta'][maskd][mask_q],
+                         gen['phi'][maskd][mask_q],
+                         gen['mass'][maskd][mask_q],
+                    )
+                    '''
+                    vs_lep = TLorentzVectorArray.from_ptetaphim(
+                         gen['pt'][maskd][mask_lep],
+                         gen['eta'][maskd][mask_lep],
+                         gen['phi'][maskd][mask_lep],
+                         gen['mass'][maskd][mask_lep],
+                    )
+                    '''
+                    return vs,vs_ele,vs_mu,vs_tau,vs_q
 
-               # fill data w. nones
-               jpt = self._get_array(table, self.fatjet_branch + '_pt')
-               self.data['_jet_H_WW_4q'] = jpt.zeros_like().astype('int')
-               self.data['_jet_H_WW_elenuqq'] = jpt.zeros_like().astype('int')
-               self.data['_jet_H_WW_munuqq'] = jpt.zeros_like().astype('int')
-               self.data['_jet_nProngs'] = jpt.zeros_like().astype('int')
-               self.data['_jet_dR_W'] = jpt.zeros_like()
-               self.data['_jet_dR_Wstar'] = jpt.zeros_like()
-
-               # now let's look at parts
+               # finding Higgs
                genHidx, genH = getBosons(gen)
-               jet_cross_genH = self.data['_jetp4'].cross(genH, nested=True)
-               matchH = jet_cross_genH.i0.delta_r2(jet_cross_genH.i1) < self.jet_r2
+               matchH = match(genH)
                fj_isH =  matchH.any().astype('int')
-
+               
                for idx,gH in enumerate(genHidx):
                     if idx not in fj_isH.flatten(): continue
                     genWidx, genW = getWs(gen,genHidx[idx])
-                    jet_cross_genW = self.data['_jetp4'].cross(genW, nested=True)
-                    matchW = jet_cross_genW.i0.delta_r2(jet_cross_genW.i1) < self.jet_r2
-                    fj_isHWW = matchW.all().astype('int')
+                    # sort by mass:
+                    genW = genW[genW.mass.argsort()]
+                    self.data['_jet_dR_W'] = self.data['_jetp4'].delta_r2(genW[:,0])
+                    self.data['_jet_dR_Wstar'] = self.data['_jetp4'].delta_r2(genW[:,1])
+                    
+                    genD, genD_ele, genD_mu, genD_tau, genD_q = getWdaus(gen,genWidx)
+                    matchD_ele = match(genD_ele).any()
+                    matchD_mu = match(genD_mu).any()
+                    matchD_tau = match(genD_tau).any()
+                    matchD_q = match(genD_q)
+                    matchD = match(genD).astype('int')
 
-                    genDpdgID, genD = getWdaus(gen,genWidx)
-                    jet_cross_genD = self.data['_jetp4'].cross(genD, nested=True)
-                    matchD = jet_cross_genD.i0.delta_r2(jet_cross_genD.i1) < self.jet_r2
-                    print('match D',matchD)
-
+                    self.data['_jet_nProngs'] = matchD.sum()
+                    if(matchD_ele.any() or matchD_mu.any() or matchD_tau.any()):
+                         self.data['_jet_H_WW_elenuqq'] = matchD_ele.astype('int')
+                         self.data['_jet_H_WW_munuqq'] = matchD_mu.astype('int')
+                         #self.data['_jet_glep_dR_W'] = genD_lep.delta_r2(genW[:,0])
+                         #self.data['_jet_glep_dR_Wstar'] = genD_lep.delta_r2(genW[:,1])
+                    else:
+                         self.data['_jet_H_WW_4q'] = matchD_q.any().astype('int')
 
           self.data.update(data)
 
