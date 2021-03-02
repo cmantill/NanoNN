@@ -79,7 +79,7 @@ class ParticleNetTagInfoMaker(object):
                self._get_array(table,self.sv_branch + '_phi'),
                self._get_array(table,self.sv_branch + '_mass'),
           )
-          
+
           jet_cross_sv = self.jetp4.cross(all_svp4, nested=True)
           match = jet_cross_sv.i0.delta_r2(jet_cross_sv.i1) < self.jet_r2
 
@@ -263,14 +263,16 @@ class ParticleNetTagInfoMaker(object):
           self.eta_sign = self.jetp4.eta.ones_like()
           self.eta_sign[self.jetp4.eta <= 0] = -1
           
-          self._make_pfcands(table)
-          self._make_sv(table)
-          self.data['_jetp4'] = self.jetp4
-
-          if is_input:
-               self._make_jet(table)
-
-          return self.data
+          if(len(self.jetp4[0])==0): return None
+          else:
+               self._make_pfcands(table)
+               self._make_sv(table)
+               self.data['_jetp4'] = self.jetp4
+               
+               if is_input:
+                    self._make_jet(table)
+                    
+               return self.data
 
      def _get_array(self, table, arr, maskjet=False, maskpf=False):
           if maskpf:

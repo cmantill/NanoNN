@@ -66,7 +66,8 @@ class InputProducer(Module):
                                                  'GenPart_*'],
                                                 namedecode='utf-8', entrystart=absolute_event_idx, entrystop=absolute_event_idx+1) 
                self.tagInfo = self.tagInfoMaker.convert(table,True)
-               return True
+               if self.tagInfo is None: return False
+               else: return True
           else:
                return False
 
@@ -92,7 +93,7 @@ class InputProducer(Module):
                     self.out.fillBranch("fj_mass", fj.mass)
                     self.out.fillBranch("fj_lsf3", fj.lsf3)
                     self.out.fillBranch("fj_deepTagMD_H4qvsQCD", fj.deepTagMD_H4qvsQCD)
-                    self.out.fillBranch("fj_deepTag_HvsQCD", self.tagInfo["_jet_deepTagHvsQCD"][0][idx])
+                    self.out.fillBranch("fj_deepTag_HvsQCD", self.tagInfo["_jet_deepTagHvsQCD"][0][jidx])
                                                                                                                                                                
                     isHiggs = self.tagInfo['_isHiggs']
                     isTop = self.tagInfo['_isTop']
@@ -101,12 +102,12 @@ class InputProducer(Module):
                     self.out.fillBranch("fj_isQCD", isQCD)
                     self.out.fillBranch("fj_isTop", isTop)
 
-                    self.out.fillBranch("fj_H_WW_4q", self.tagInfo["_jet_H_WW_4q"][0][idx])
-                    self.out.fillBranch("fj_H_WW_elenuqq", self.tagInfo["_jet_H_WW_elenuqq"][0][idx])
-                    self.out.fillBranch("fj_H_WW_munuqq", self.tagInfo["_jet_H_WW_munuqq"][0][idx])
-                    self.out.fillBranch("fj_nProngs", self.tagInfo["_jet_nProngs"][0][idx])
-                    self.out.fillBranch("fj_dR_W", self.tagInfo["_jet_dR_W"][0][idx])
-                    self.out.fillBranch("fj_dR_Wstar", self.tagInfo["_jet_dR_Wstar"][0][idx])
+                    self.out.fillBranch("fj_H_WW_4q", self.tagInfo["_jet_H_WW_4q"][0][jidx])
+                    self.out.fillBranch("fj_H_WW_elenuqq", self.tagInfo["_jet_H_WW_elenuqq"][0][jidx])
+                    self.out.fillBranch("fj_H_WW_munuqq", self.tagInfo["_jet_H_WW_munuqq"][0][jidx])
+                    self.out.fillBranch("fj_nProngs", self.tagInfo["_jet_nProngs"][0][jidx])
+                    self.out.fillBranch("fj_dR_W", self.tagInfo["_jet_dR_W"][0][jidx])
+                    self.out.fillBranch("fj_dR_Wstar", self.tagInfo["_jet_dR_Wstar"][0][jidx])
 
                     for key in self.pf_names:
                          self.out.fillBranch(key, outputs['pf_features'][key])
