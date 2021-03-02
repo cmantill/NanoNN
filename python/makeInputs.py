@@ -18,21 +18,15 @@ class ParticleNetTagInfoMaker(object):
           for k in data:
                data[k] = data[k].astype('float32')
 
-     def _get_array(self, table, arr):
-          mask = ((table[self.fatjet_branch + '_pt'] > 300) & (table[self.fatjet_branch + '_msoftdrop'] > 0)).any()
-          return table[arr][mask]
-
      def _make_pfcands(self,table):
           data = {}
-          cand_parents = self._get_array(table,self.fatjetpf_branch + '_jetIdx')
-          jet_cand_idxs = self._get_array(table,self.fatjetpf_branch + '_pFCandsIdx')
-
+          cand_parents = self._get_array(table,self.fatjetpf_branch + '_jetIdx', False, True)
+          jet_cand_idxs = self._get_array(table,self.fatjetpf_branch + '_pFCandsIdx', False, True)
           def pf(var_name):
                branch_name = self.pfcand_branch + '_' + var_name
                if var_name[:4] == 'btag':
                     branch_name = self.fatjetpf_branch + '_' + var_name
-               cand_arr = self._get_array(table,branch_name)
-               cand_arr = cand_arr[jet_cand_idxs]
+               cand_arr = self._get_array(table,branch_name,False,True)
                return awkward.JaggedArray.fromiter([awkward.JaggedArray.fromparents(idx, a) if len(idx) else [] for idx, a in zip(cand_parents, cand_arr)])
 
           data['pfcand_VTX_ass'] = pf('pvAssocQuality')
@@ -256,11 +250,15 @@ class ParticleNetTagInfoMaker(object):
 
      def convert(self,table,is_input=False):
           self.data = {}
+          self.mask_jet = (table[self.fatjet_branch + '_pt'] > 300.) & (table[self.fatjet_branch + '_msoftdrop'] > 20.)
+          nj = self.mask_jet.astype('int').sum()[0]
+          self.mask_id = (awkward.JaggedArray.fromiter([np.isin(table[self.fatjetpf_branch + '_jetIdx'][index],list(range(0,nj))) for index in range(len(table[self.fatjetpf_branch + '_jetIdx']))]))
+
           self.jetp4 = TLorentzVectorArray.from_ptetaphim(
-               self._get_array(table, self.fatjet_branch + '_pt'),
-               self._get_array(table, self.fatjet_branch + '_eta'),
-               self._get_array(table, self.fatjet_branch + '_phi'),
-               self._get_array(table, self.fatjet_branch + '_mass'),
+               self._get_array(table, self.fatjet_branch + '_pt', True),
+               self._get_array(table,self.fatjet_branch + '_eta', True),
+               self._get_array(table,self.fatjet_branch + '_phi', True),
+               self._get_array(table,self.fatjet_branch + '_mass', True),
           )
           self.eta_sign = self.jetp4.eta.ones_like()
           self.eta_sign[self.jetp4.eta <= 0] = -1
@@ -273,3 +271,11 @@ class ParticleNetTagInfoMaker(object):
                self._make_jet(table)
 
           return self.data
+
+     def _get_array(self, table, arr, maskjet=False, maskpf=False):
+          if maskpf:
+               return table[arr][self.mask_id]
+          elif maskjet:
+               return table[arr][self.mask_jet]
+          else:
+               return table[arr][(self.mask_jet).any()]

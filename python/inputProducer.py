@@ -72,11 +72,18 @@ class InputProducer(Module):
 
      def fill(self, event, ievent):
           absolute_event_idx = event._entry if event._tree._entrylist is None else event._tree._entrylist.GetEntry(event._entry)
+          skip = -1
           for idx, fj in enumerate(event._allFatJets):
                if idx>1 : continue
-               fj.idx = idx
+               if (fj.pt < 300 or fj.msoftdrop < 20): 
+                    skip = idx;
+                    continue
+               else:
+                    if skip==-1: jidx = idx
+                    else: jidx = skip
+               fj.idx = jidx
                fj = event._allFatJets[idx]
-               outputs = self.pnTagger.pad_one(self.tagInfo, idx)
+               outputs = self.pnTagger.pad_one(self.tagInfo, jidx)
                if outputs:
                     self.out.fillBranch("fj_idx", fj.idx)
                     self.out.fillBranch("fj_pt", fj.pt)
