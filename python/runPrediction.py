@@ -54,6 +54,7 @@ class ParticleNetJetTagsProducer(object):
             data[group_name] = {}
             info = self.prep_params[group_name]
             for var in info['var_names']:
+                #print(var)
                 a = taginfo[var][0][jet_idx]
                 a = _pad(a, min_length=info['var_length'], max_length=info['var_length'])
                 if self.debug:

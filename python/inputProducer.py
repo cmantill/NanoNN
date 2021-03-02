@@ -58,6 +58,7 @@ class InputProducer(Module):
 
      def analyze(self, event, ievent):
           absolute_event_idx = event._entry if event._tree._entrylist is None else event._tree._entrylist.GetEntry(event._entry)
+          #print('abs ',absolute_event_idx)
           event._allFatJets = Collection(event, "FatJet")
           if len(event._allFatJets)>0: 
                table = self._uproot_tree.arrays(['FatJet_pt','FatJet_eta', 'FatJet_phi', 'FatJet_mass', 
@@ -76,7 +77,8 @@ class InputProducer(Module):
           skip = -1
           for idx, fj in enumerate(event._allFatJets):
                if idx>1 : continue
-               if (fj.pt < 300 or fj.msoftdrop < 20): 
+               #print('fj pt ',fj.pt, fj.msoftdrop)
+               if (fj.pt <= 300 or fj.msoftdrop <= 20):
                     skip = idx;
                     continue
                else:
@@ -84,6 +86,7 @@ class InputProducer(Module):
                     else: jidx = skip
                fj.idx = jidx
                fj = event._allFatJets[idx]
+               #print('taginfo ',self.tagInfo, jidx)
                outputs = self.pnTagger.pad_one(self.tagInfo, jidx)
                if outputs:
                     self.out.fillBranch("fj_idx", fj.idx)
