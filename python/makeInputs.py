@@ -5,6 +5,7 @@ import ROOT
 ROOT.PyConfig.IgnoreCommandLineOptions = True
 import numpy as np
 from uproot_methods import TLorentzVectorArray
+from collections import Counter
 
 class ParticleNetTagInfoMaker(object):
      def __init__(self, fatjet_branch, pfcand_branch, sv_branch, fatpfcand_branch, jetR=0.8):
@@ -18,16 +19,31 @@ class ParticleNetTagInfoMaker(object):
           for k in data:
                data[k] = data[k].astype('float32')
 
+     def _get_array(self, table, arr, maskjet=False, maskpf=False):
+          if maskpf:
+               return table[arr][self.mask_id]
+          elif maskjet:
+               return table[arr][self.mask_jet][(self.mask_jet).any()]
+          else:
+               return table[arr][(self.mask_jet).any()]
+
      def _make_pfcands(self,table):
           data = {}
+
           cand_parents = self._get_array(table,self.fatjetpf_branch + '_jetIdx', False, True)
           jet_cand_idxs = self._get_array(table,self.fatjetpf_branch + '_pFCandsIdx', False, True)
+
+          c = Counter((cand_parents.offsets[:-1] + cand_parents).content)
+          jet_cand_counts = awkward.JaggedArray.fromcounts(self.jetp4.counts, [c[k] for k in sorted(c.keys())])
+
           def pf(var_name):
                branch_name = self.pfcand_branch + '_' + var_name
                if var_name[:4] == 'btag':
                     branch_name = self.fatjetpf_branch + '_' + var_name
                cand_arr = self._get_array(table,branch_name,False,True)
-               return awkward.JaggedArray.fromiter([awkward.JaggedArray.fromparents(idx, a) if len(idx) else [] for idx, a in zip(cand_parents, cand_arr)])
+               out = jet_cand_counts.copy(
+                    content=awkward.JaggedArray.fromcounts(jet_cand_counts.content, cand_arr.content))
+               return out
 
           data['pfcand_VTX_ass'] = pf('pvAssocQuality')
           data['pfcand_lostInnerHits'] = pf('lostInnerHits')
@@ -151,31 +167,20 @@ class ParticleNetTagInfoMaker(object):
                     
                def getBosons(gen,idp=25):
                     mask = (gen['id'] == idp) & (gen['status']==22)
-                    idxs = np.where(mask.flatten())
+                    idx = awkward.JaggedArray.fromiter([np.where(mask[index]) for index in range(len(gen['id']))])
                     vs = TLorentzVectorArray.from_ptetaphim(
                          gen['pt'][mask],
                          gen['eta'][mask],
                          gen['phi'][mask],
                          gen['mass'][mask],
                     )
-                    return idxs[0],vs
+                    return idx.flatten(),vs
                     
-               def getWs(gen,mom):
-                    genpartmom = gen['mom']
-                    mask = (gen['id'] == 24) & (awkward.JaggedArray.fromiter([np.isin(genpartmom[index],mom) for index in range(len(genpartmom))]))
-                    idxs = np.where(mask.flatten())
-                    vs = TLorentzVectorArray.from_ptetaphim(
-                         gen['pt'][mask],
-                         gen['eta'][mask],
-                         gen['phi'][mask],
-                         gen['mass'][mask],
-                    )
-                    return idxs[0],vs
-
                def getWdaus(gen,mothers):
                     genpartmom = gen['mom']
                     mask = (awkward.JaggedArray.fromiter([np.isin(genpartmom[index],mothers) for index in range(len(genpartmom))])) 
                     genW = mask & (gen['id'] == 24)
+                    print('dau W ',genW)
                     if genW.any():
                          idxs = np.where(genW.flatten())[0]
                          maskd = (awkward.JaggedArray.fromiter([np.isin(genpartmom[index],idxs)  for index in range(len(genpartmom))]))
@@ -219,40 +224,70 @@ class ParticleNetTagInfoMaker(object):
                     )
                     return vs,vs_ele,vs_mu,vs_tau,vs_q
 
+               def getWs(gen,mom):
+                    genpartmom = gen['mom']
+                    gpt = []; geta = []; gphi = []; gm = []; gidx = []
+                    for index in range(len(gen['mom'])):
+                         igpt = []; igeta = []; igphi =[]; igm = []; igidx = [];
+                         for midx in range(len(mom[index])):
+                              mask = (gen['id'][index] == 24) & np.isin(genpartmom[index],mom[index][midx])
+                              igidx.append(np.where(mask))
+                              igpt.append(gen['pt'][index][mask])
+                              igeta.append(gen['eta'][index][mask])
+                              igphi.append(gen['phi'][index][mask])
+                              igm.append(gen['mass'][index][mask])
+                         gidx.append(igidx)
+                         gpt.append(igpt)
+                         geta.append(igeta)
+                         gphi.append(igphi)
+                         gm.append(igm)
+                    vs = TLorentzVectorArray.from_ptetaphim(awkward.JaggedArray.fromiter(gpt),awkward.JaggedArray.fromiter(geta),awkward.JaggedArray.fromiter(gphi),awkward.JaggedArray.fromiter(gm))
+                    
+                    idx = awkward.JaggedArray.fromiter(gidx)
+                    print(vs[0])
+                    return idx,vs
+
                # finding Higgs
-               genHidx, genH = getBosons(gen)
-               matchH = match(genH)
-               fj_isH =  matchH.any().astype('int')
-               
-               for idx,gH in enumerate(genHidx):
-                    if idx not in fj_isH.flatten(): continue
-                    genWidx, genW = getWs(gen,genHidx[idx])
+               genHidx,genH = getBosons(gen)
+               jet_cross_genH = genH.cross(self.data['_jetp4'], nested=True)
+               matchH = jet_cross_genH.i0.delta_r2(jet_cross_genH.i1) < self.jet_r2
+               genHmatch = genHidx[matchH.any()]
+
+               # only get Ws from Hs that are matched to a jet
+               genWidx, genW = getWs(gen,genHmatch)
+               genW = genW[genW.mass.argsort()] 
+               print('gen w ',genW)
+               #print('gen w 0 ',genW[:,0])
+               #print('gen w 1 ',genW[:,1])
+
+               '''
                     # sort by mass:
                     genW = genW[genW.mass.argsort()]
-                    self.data['_jet_dR_W'] = self.data['_jetp4'].delta_r2(genW[:,0])
+                    print('genW shape ',genW.shape)
+                    self.data['_jet_dR_W'] = self.data['_jetp4'].delta_r2(genW[:,0])                    
                     self.data['_jet_dR_Wstar'] = self.data['_jetp4'].delta_r2(genW[:,1])
-                    
-                    genD, genD_ele, genD_mu, genD_tau, genD_q = getWdaus(gen,genWidx)
-                    matchD_ele = match(genD_ele).any()
-                    matchD_mu = match(genD_mu).any()
-                    matchD_tau = match(genD_tau).any()
-                    matchD_q = match(genD_q)
-                    matchD = match(genD).astype('int')
 
-                    self.data['_jet_nProngs'] = matchD.sum()
-                    if(matchD_ele.any() or matchD_mu.any() or matchD_tau.any()):
-                         self.data['_jet_H_WW_elenuqq'] = matchD_ele.astype('int')
-                         self.data['_jet_H_WW_munuqq'] = matchD_mu.astype('int')
-                    else:
-                         self.data['_jet_H_WW_4q'] = matchD_q.any().astype('int')
-
+               genD, genD_ele, genD_mu, genD_tau, genD_q = getWdaus(gen,genWidx)
+               matchD_ele = match(genD_ele).any()
+               matchD_mu = match(genD_mu).any()
+               matchD_tau = match(genD_tau).any()
+               matchD_q = match(genD_q)
+               matchD = match(genD).astype('int')
+               
+               self.data['_jet_nProngs'] = matchD.sum()
+               if(matchD_ele.any() or matchD_mu.any() or matchD_tau.any()):
+                    self.data['_jet_H_WW_elenuqq'] = matchD_ele.astype('int')
+                    self.data['_jet_H_WW_munuqq'] = matchD_mu.astype('int')
+               else:
+                    self.data['_jet_H_WW_4q'] = matchD_q.any().astype('int')
+               '''
           self.data.update(data)
 
      def convert(self,table,is_input=False):
           self.data = {}
           self.mask_jet = (table[self.fatjet_branch + '_pt'] > 300.) & (table[self.fatjet_branch + '_msoftdrop'] > 20.)
-          nj = self.mask_jet.astype('int').sum()[0]
-          self.mask_id = (awkward.JaggedArray.fromiter([np.isin(table[self.fatjetpf_branch + '_jetIdx'][index],list(range(0,nj))) for index in range(len(table[self.fatjetpf_branch + '_jetIdx']))]))
+          nj = self.mask_jet.astype('int').sum()
+          self.mask_id = (awkward.JaggedArray.fromiter([np.isin(table[self.fatjetpf_branch + '_jetIdx'][index],list(range(0,nj[index]))) for index in range(len(table[self.fatjetpf_branch + '_jetIdx']))]))
 
           self.jetp4 = TLorentzVectorArray.from_ptetaphim(
                self._get_array(table, self.fatjet_branch + '_pt', True),
@@ -262,22 +297,39 @@ class ParticleNetTagInfoMaker(object):
           )
           self.eta_sign = self.jetp4.eta.ones_like()
           self.eta_sign[self.jetp4.eta <= 0] = -1
-          
-          if(len(self.jetp4[0])==0): return None
-          else:
+
+          if(self.mask_jet.any().any()):
                self._make_pfcands(table)
                self._make_sv(table)
                self.data['_jetp4'] = self.jetp4
-               
+
                if is_input:
                     self._make_jet(table)
-                    
-               return self.data
 
-     def _get_array(self, table, arr, maskjet=False, maskpf=False):
-          if maskpf:
-               return table[arr][self.mask_id]
-          elif maskjet:
-               return table[arr][self.mask_jet]
+               return self.data
           else:
-               return table[arr][(self.mask_jet).any()]
+               return None
+
+     def init_file(self, inputFile, fetch_step=1000):
+          self._uproot_basketcache = uproot.cache.ThreadSafeArrayCache('200MB')
+          self._uproot_keycache = uproot.cache.ThreadSafeArrayCache('10MB')
+          self._uproot_tree = uproot.open(inputFile.GetName())['Events']
+          self._uproot_fetch_step = fetch_step
+          self._uproot_start = 0
+          self._uproot_stop = 0
+          self._taginfo = None
+
+     def load(self, event_idx,is_input=False):
+          if event_idx >= self._uproot_stop:
+               self._uproot_start = event_idx
+               self._uproot_stop = self._uproot_start + self._uproot_fetch_step
+               table = self._uproot_tree.arrays(['FatJet_pt','FatJet_eta', 'FatJet_phi', 'FatJet_mass',
+                                                 'FatJet_msoftdrop','FatJet_deepTag_H','FatJet_deepTag_QCD','FatJet_deepTag_QCDothers',
+                                                 '*FatJetPFCands*', 'PFCands*', 'SV*',
+                                                 'GenPart_*'],
+                                                namedecode='utf-8',
+                                                entrystart=self._uproot_start, entrystop=self._uproot_stop,
+                                                basketcache=self._uproot_basketcache, keycache=self._uproot_keycache,
+                                           )
+               self._taginfo = self.convert(table,is_input)
+          return self._taginfo
