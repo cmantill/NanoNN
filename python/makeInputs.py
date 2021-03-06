@@ -1,11 +1,12 @@
 import os
 import uproot
-import awkward
+import awkward as ak
 import ROOT
 ROOT.PyConfig.IgnoreCommandLineOptions = True
 import numpy as np
 from uproot_methods import TLorentzVectorArray
 from collections import Counter
+import itertools 
 
 class ParticleNetTagInfoMaker(object):
      def __init__(self, fatjet_branch, pfcand_branch, sv_branch, fatpfcand_branch, jetR=0.8):
@@ -34,7 +35,7 @@ class ParticleNetTagInfoMaker(object):
           jet_cand_idxs = self._get_array(table,self.fatjetpf_branch + '_pFCandsIdx', False, True)
 
           c = Counter((cand_parents.offsets[:-1] + cand_parents).content)
-          jet_cand_counts = awkward.JaggedArray.fromcounts(self.jetp4.counts, [c[k] for k in sorted(c.keys())])
+          jet_cand_counts = ak.JaggedArray.fromcounts(self.jetp4.counts, [c[k] for k in sorted(c.keys())])
 
           def pf(var_name):
                branch_name = self.pfcand_branch + '_' + var_name
@@ -42,7 +43,7 @@ class ParticleNetTagInfoMaker(object):
                     branch_name = self.fatjetpf_branch + '_' + var_name
                cand_arr = self._get_array(table,branch_name,False,True)
                out = jet_cand_counts.copy(
-                    content=awkward.JaggedArray.fromcounts(jet_cand_counts.content, cand_arr.content))
+                    content=ak.JaggedArray.fromcounts(jet_cand_counts.content, cand_arr.content))
                return out
 
           data['pfcand_VTX_ass'] = pf('pvAssocQuality')
@@ -167,7 +168,7 @@ class ParticleNetTagInfoMaker(object):
                     
                def getBosons(gen,idp=25):
                     mask = (gen['id'] == idp) & (gen['status']==22)
-                    idx = awkward.JaggedArray.fromiter([np.where(mask[index]) for index in range(len(gen['id']))])
+                    idx = ak.JaggedArray.fromiter([np.where(mask[index]) for index in range(len(gen['id']))])
                     vs = TLorentzVectorArray.from_ptetaphim(
                          gen['pt'][mask],
                          gen['eta'][mask],
@@ -178,12 +179,12 @@ class ParticleNetTagInfoMaker(object):
                     
                def getWdaus(gen,mothers):
                     genpartmom = gen['mom']
-                    mask = (awkward.JaggedArray.fromiter([np.isin(genpartmom[index],mothers) for index in range(len(genpartmom))])) 
+                    mask = (ak.JaggedArray.fromiter([np.isin(genpartmom[index],mothers) for index in range(len(genpartmom))])) 
                     genW = mask & (gen['id'] == 24)
                     print('dau W ',genW)
                     if genW.any():
                          idxs = np.where(genW.flatten())[0]
-                         maskd = (awkward.JaggedArray.fromiter([np.isin(genpartmom[index],idxs)  for index in range(len(genpartmom))]))
+                         maskd = (ak.JaggedArray.fromiter([np.isin(genpartmom[index],idxs)  for index in range(len(genpartmom))]))
                     else:
                          maskd = mask & (gen['id'] != 24) & (gen['id'] != 22)
                          idxs = np.where(maskd.flatten())
@@ -224,50 +225,111 @@ class ParticleNetTagInfoMaker(object):
                     )
                     return vs,vs_ele,vs_mu,vs_tau,vs_q
 
-               def getWs(gen,mom):
+
+               def getFinal(gp):
+                    for idx in gp.dauIdx:
+                         dau = genparts[idx]
+                         if dau.pdgId == gp.pdgId:
+                              return getFinal(dau)
+                    return gp
+
+               def getWWs(gen,mom):
                     genpartmom = gen['mom']
+                    mask = (gen['id'] == 24) & (ak.JaggedArray.fromiter([np.isin(genpartmom[index],mom) for index in range(len(genpartmom))]))
+                    print('mask ',mask)
+                    idxs = np.where(mask.flatten())
+                    print('id ',idxs)
+                    print('mom fl ',mom,mom.flatten())
+                    m = mom.flatten()
+                    for index in range(len(gen['mom'])):
+                         print(gen['mom'][index])
+                         print(mom[index])
+                    mask = [[((gen['mom'][index] == mindex) & (gen['id'][index]==24)) for mindex in mom[index]] for index in range(len(gen['mom']))]
+                    #print('new m ',l,len(l))
+                    #print('flat ',list(itertools.chain(*l)),len(list(itertools.chain(*l))))
+                    idxs = np.where(mask)
+                    print('id ',idxs)
+                    for m in mask:
+                         print(np.where(m.any()))
+                    d = ak.JaggedArray.fromcounts(mom.counts, list(itertools.chain(*mask)))
+                    print('d ',d)
+                    print('d m ',d.flatten())
+                    print('where ',np.where(d.flatten()))
+                    #print('m 0 ',m[0])
+                    #print('mas 0 ',gen['mom'][0] ==m[0])
+                    #mask = ak.JaggedArray.fromcounts(mom.counts, [[ gen['mom'][index] == mindex for mindex in mom[index]] for index in range(len(gen['mom']))])
+                    #print('mask ',mask)
+                    #mask = (gen['id'] == 24) & np.isin(genpartmom, mom)
+
                     gpt = []; geta = []; gphi = []; gm = []; gidx = []
+                    wgpt = []; wgeta = []; wgphi = []; wgm = []; 
+                    wsgpt = []; wsgeta = []; wsgphi = []; wsgm = [];
                     for index in range(len(gen['mom'])):
                          igpt = []; igeta = []; igphi =[]; igm = []; igidx = [];
+                         iwgpt = []; iwgeta = []; iwgphi = []; iwgm = [];
+                         iwsgpt = []; iwsgeta = []; iwsgphi = []; iwsgm = [];
                          for midx in range(len(mom[index])):
                               mask = (gen['id'][index] == 24) & np.isin(genpartmom[index],mom[index][midx])
-                              igidx.append(np.where(mask))
-                              igpt.append(gen['pt'][index][mask])
-                              igeta.append(gen['eta'][index][mask])
-                              igphi.append(gen['phi'][index][mask])
-                              igm.append(gen['mass'][index][mask])
-                         gidx.append(igidx)
-                         gpt.append(igpt)
-                         geta.append(igeta)
-                         gphi.append(igphi)
-                         gm.append(igm)
-                    vs = TLorentzVectorArray.from_ptetaphim(awkward.JaggedArray.fromiter(gpt),awkward.JaggedArray.fromiter(geta),awkward.JaggedArray.fromiter(gphi),awkward.JaggedArray.fromiter(gm))
-                    
-                    idx = awkward.JaggedArray.fromiter(gidx)
-                    print(vs[0])
-                    return idx,vs
+
+
+                              msort = gen['mass'][index][mask].argsort() # sort Ws by mass
+                              pt = gen['pt'][index][mask][msort]
+                              eta = gen['eta'][index][mask][msort]
+                              phi = gen['phi'][index][mask][msort]
+                              m = gen['mass'][index][mask][msort]
+
+                              igidx.append(list(np.where(mask.flatten()))[0])
+                              igpt.append(pt); igeta.append(eta); igphi.append(phi); igm.append(m);
+
+                              if len(pt)>0:
+                                   iwgpt.append(pt[0]); iwgeta.append(eta[0]); iwgphi.append(phi[0]); iwgm.append(m[0]);
+                                   if len(pt)>1:
+                                        iwsgpt.append(pt[0]); iwsgeta.append(eta[0]); iwsgphi.append(phi[0]); iwsgm.append(m[0]);
+
+                              #genD, genD_ele, genD_mu, genD_tau, genD_q = getWdaus(gen,np.where(mask.flatten())[0])
+
+                         gidx.append(list(igidx))
+                         gpt.append(igpt); geta.append(igeta); gphi.append(igphi); gm.append(igm);
+                         wgpt.append(iwgpt); wgeta.append(iwgeta); wgphi.append(iwgphi); wgm.append(iwgm);
+                         wsgpt.append(iwsgpt); wsgeta.append(iwsgeta); wsgphi.append(iwsgphi); wsgm.append(iwsgm);
+
+                    vs = TLorentzVectorArray.from_ptetaphim(ak.JaggedArray.fromiter(gpt),ak.JaggedArray.fromiter(geta),ak.JaggedArray.fromiter(gphi),ak.JaggedArray.fromiter(gm))
+                    w=TLorentzVectorArray.from_ptetaphim(ak.JaggedArray.fromiter(wgpt),ak.JaggedArray.fromiter(wgeta),ak.JaggedArray.fromiter(wgphi),ak.JaggedArray.fromiter(wgm))
+                    ws=TLorentzVectorArray.from_ptetaphim(ak.JaggedArray.fromiter(wsgpt),ak.JaggedArray.fromiter(wsgeta),ak.JaggedArray.fromiter(wsgphi),ak.JaggedArray.fromiter(wsgm))
+                    return gidx,vs,w,ws
+
+               def getWs(gen,mom):
+                    genpartmom = gen['mom']
+                    mask = (gen['id'] == 24) & (ak.JaggedArray.fromiter([np.isin(genpartmom[index],mom) for index in range(len(genpartmom))]))
+                    idxs = np.where(mask.flatten())
+                    print('w id ',idxs)
+                    vs = TLorentzVectorArray.from_ptetaphim(
+                         gen['pt'][mask],
+                         gen['eta'][mask],
+                         gen['phi'][mask],
+                         gen['mass'][mask],
+                    )
+                    return idxs[0],vs
 
                # finding Higgs
                genHidx,genH = getBosons(gen)
                jet_cross_genH = genH.cross(self.data['_jetp4'], nested=True)
                matchH = jet_cross_genH.i0.delta_r2(jet_cross_genH.i1) < self.jet_r2
-               genHmatch = genHidx[matchH.any()]
+               genHmatch = ak.JaggedArray.fromiter(genHidx[matchH.any()])
+               print('gen H ',genHmatch.counts,genHmatch)
 
                # only get Ws from Hs that are matched to a jet
                genWidx, genW = getWs(gen,genHmatch)
-               genW = genW[genW.mass.argsort()] 
-               print('gen w ',genW)
-               #print('gen w 0 ',genW[:,0])
-               #print('gen w 1 ',genW[:,1])
 
+               genWidx, genW, genW0, genW1 = getWWs(gen,genHmatch)
+               print('gen w ',genWidx)
+               print('gen W jagg ',ak.JaggedArray.fromiter(genWidx))
+               print('gen W counts ',ak.JaggedArray.fromiter(genWidx).counts)
+               self.data['_jet_dR_W'] = self.data['_jetp4'].delta_r2(genW0)                    
+               self.data['_jet_dR_Wstar'] = self.data['_jetp4'].delta_r2(genW1)
+               
+               #genD, genD_ele, genD_mu, genD_tau, genD_q = getWdaus(gen,genWidx)
                '''
-                    # sort by mass:
-                    genW = genW[genW.mass.argsort()]
-                    print('genW shape ',genW.shape)
-                    self.data['_jet_dR_W'] = self.data['_jetp4'].delta_r2(genW[:,0])                    
-                    self.data['_jet_dR_Wstar'] = self.data['_jetp4'].delta_r2(genW[:,1])
-
-               genD, genD_ele, genD_mu, genD_tau, genD_q = getWdaus(gen,genWidx)
                matchD_ele = match(genD_ele).any()
                matchD_mu = match(genD_mu).any()
                matchD_tau = match(genD_tau).any()
@@ -287,7 +349,7 @@ class ParticleNetTagInfoMaker(object):
           self.data = {}
           self.mask_jet = (table[self.fatjet_branch + '_pt'] > 300.) & (table[self.fatjet_branch + '_msoftdrop'] > 20.)
           nj = self.mask_jet.astype('int').sum()
-          self.mask_id = (awkward.JaggedArray.fromiter([np.isin(table[self.fatjetpf_branch + '_jetIdx'][index],list(range(0,nj[index]))) for index in range(len(table[self.fatjetpf_branch + '_jetIdx']))]))
+          self.mask_id = (ak.JaggedArray.fromiter([np.isin(table[self.fatjetpf_branch + '_jetIdx'][index],list(range(0,nj[index]))) for index in range(len(table[self.fatjetpf_branch + '_jetIdx']))]))
 
           self.jetp4 = TLorentzVectorArray.from_ptetaphim(
                self._get_array(table, self.fatjet_branch + '_pt', True),
