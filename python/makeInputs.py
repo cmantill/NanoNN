@@ -143,13 +143,12 @@ class ParticleNetTagInfoMaker(object):
           data['_isHiggs'] = np.any(np.abs(self._get_array(table,'GenPart_pdgId')==25)[0]).astype('int')
           data['_isTop'] = np.any(np.abs(self._get_array(table,'GenPart_pdgId')==6)[0]).astype('int')
 
-          jpt = self._get_array(table, self.fatjet_branch + '_pt')
-          self.data['_jet_H_WW_4q'] = jpt.zeros_like().astype('int')
-          self.data['_jet_H_WW_elenuqq'] = jpt.zeros_like().astype('int')
-          self.data['_jet_H_WW_munuqq'] = jpt.zeros_like().astype('int')
-          self.data['_jet_nProngs'] = jpt.zeros_like().astype('int')
-          self.data['_jet_dR_W'] = jpt.zeros_like()
-          self.data['_jet_dR_Wstar'] = jpt.zeros_like()
+          self.data['_jet_H_WW_4q'] = self.data['_jetp4'].pt.zeros_like().astype('int')
+          self.data['_jet_H_WW_elenuqq'] = self.data['_jetp4'].pt.zeros_like().astype('int')
+          self.data['_jet_H_WW_munuqq'] = self.data['_jetp4'].pt.zeros_like().astype('int')
+          self.data['_jet_nProngs'] = self.data['_jetp4'].pt.zeros_like().astype('int')
+          self.data['_jet_dR_W'] = self.data['_jetp4'].pt.zeros_like()
+          self.data['_jet_dR_Wstar'] = self.data['_jetp4'].pt.zeros_like()
 
           if data['_isHiggs'] > 0:
                gen = {'mom': self._get_array(table, 'GenPart_genPartIdxMother'),
@@ -160,11 +159,6 @@ class ParticleNetTagInfoMaker(object):
                       'mass': self._get_array(table, 'GenPart_mass'),
                       'status': self._get_array(table, 'GenPart_status'),
                  }
-
-               def match(genP):
-                    jet_cross_genP = self.data['_jetp4'].cross(genP, nested=True)
-                    matchP = jet_cross_genP.i0.delta_r2(jet_cross_genP.i1) < self.jet_r2
-                    return matchP
                     
                def getBosons(gen,idp=25):
                     mask = (gen['id'] == idp) & (gen['status']==22)
@@ -177,172 +171,181 @@ class ParticleNetTagInfoMaker(object):
                     )
                     return idx.flatten(),vs
                     
-               def getWdaus(gen,mothers):
-                    genpartmom = gen['mom']
-                    mask = (ak.JaggedArray.fromiter([np.isin(genpartmom[index],mothers) for index in range(len(genpartmom))])) 
-                    genW = mask & (gen['id'] == 24)
-                    print('dau W ',genW)
-                    if genW.any():
-                         idxs = np.where(genW.flatten())[0]
-                         maskd = (ak.JaggedArray.fromiter([np.isin(genpartmom[index],idxs)  for index in range(len(genpartmom))]))
+               def getFinal(gen,mom,index):
+                    mask = np.isin(gen['mom'][index],mom)
+                    maskW = (gen['id'][index] == 24) & mask
+                    if maskW.any():
+                         idxs = np.where(maskW)[0]
+                         maskd = np.isin(gen['mom'][index],idxs)
+                         if ((gen['id'][index] == 24) & maskd).any():
+                              return getFinal(gen,idxs,index)
+                         else:
+                              return np.where(maskW)[0]
                     else:
-                         maskd = mask & (gen['id'] != 24) & (gen['id'] != 22)
-                         idxs = np.where(maskd.flatten())
-                    pdgid = gen['id'][maskd]
-                    mask_ele = (pdgid==11) | (pdgid==12)
-                    mask_mu = (pdgid==13) | (pdgid==14)
-                    mask_tau = (pdgid==15) | (pdgid==16)
-                    mask_q = (pdgid<=5)
-                    vs = TLorentzVectorArray.from_ptetaphim(
-                         gen['pt'][maskd],
-                         gen['eta'][maskd],
-                         gen['phi'][maskd],
-                         gen['mass'][maskd],
+                         return mom
+
+
+               def getWdaus(gen,mom,index):
+                    idxW = getFinal(gen,mom,index)
+                    maskd = np.isin(gen['mom'][index],idxW) 
+                    pdgid = gen['id'][index][maskd]
+
+                    masks = {'ele': (pdgid==11) | (pdgid==12),
+                             'mu': (pdgid==13) | (pdgid==14),
+                             'tau': (pdgid==15) | (pdgid==16),
+                             'q': (pdgid<=5)
+                        }
+
+                    def matchIndex(genP,index):
+                         if len(genP)>0:
+                              matchP = []
+                              for j in self.data['_jetp4'][index]:
+                                   matchP.append([j.delta_r2(g) < self.jet_r2 for g in genP])
+                              return matchP
+                         else:
+                              return np.zeros(len(self.data['_jetp4'][index].pt), dtype=int)
+
+                    matchD = matchIndex(
+                         TLorentzVectorArray.from_ptetaphim(
+                              gen['pt'][index][maskd],
+                              gen['eta'][index][maskd],
+                              gen['phi'][index][maskd],
+                              gen['mass'][index][maskd],
+                         ), index
                     )
-                    vs_ele = TLorentzVectorArray.from_ptetaphim(
-                         gen['pt'][maskd][mask_ele],
-                         gen['eta'][maskd][mask_ele],
-                         gen['phi'][maskd][mask_ele],
-                         gen['mass'][maskd][mask_ele],
-                    )
-                    vs_mu = TLorentzVectorArray.from_ptetaphim(
-                         gen['pt'][maskd][mask_mu],
-                         gen['eta'][maskd][mask_mu],
-                         gen['phi'][maskd][mask_mu],
-                         gen['mass'][maskd][mask_mu],
-                    )
-                    vs_tau = TLorentzVectorArray.from_ptetaphim(
-                         gen['pt'][maskd][mask_tau],
-                         gen['eta'][maskd][mask_tau],
-                         gen['phi'][maskd][mask_tau],
-                         gen['mass'][maskd][mask_tau],
-                    )
-                    vs_q = TLorentzVectorArray.from_ptetaphim(
-                         gen['pt'][maskd][mask_q],
-                         gen['eta'][maskd][mask_q],
-                         gen['phi'][maskd][mask_q],
-                         gen['mass'][maskd][mask_q],
-                    )
-                    return vs,vs_ele,vs_mu,vs_tau,vs_q
+                    match = {}
+                    for key,im in masks.items():
+                         matchdau = matchIndex(
+                              TLorentzVectorArray.from_ptetaphim(
+                                   gen['pt'][index][maskd][im],
+                                   gen['eta'][index][maskd][im],
+                                   gen['phi'][index][maskd][im],
+                                   gen['mass'][index][maskd][im]
+                              ), index
+                         )
+                         try:
+                              match[key] = np.any(matchdau,axis=1)
+                         except:
+                              match[key] = matchdau>0
 
+                    nProngs = np.sum(matchD,axis=1)
+                    jetHWWqq = {}
+                    for key in ['mu','tau','ele','q']:
+                         try: 
+                              jetHWWqq[key] = (match[key] & match['q']).astype('int')
+                         except:
+                              jetHWWqq[key] = (match[key] & match['q'])
 
-               def getFinal(gp):
-                    for idx in gp.dauIdx:
-                         dau = genparts[idx]
-                         if dau.pdgId == gp.pdgId:
-                              return getFinal(dau)
-                    return gp
-
-               def getWWs(gen,mom):
-                    genpartmom = gen['mom']
-                    mask = (gen['id'] == 24) & (ak.JaggedArray.fromiter([np.isin(genpartmom[index],mom) for index in range(len(genpartmom))]))
-                    print('mask ',mask)
-                    idxs = np.where(mask.flatten())
-                    print('id ',idxs)
-                    print('mom fl ',mom,mom.flatten())
-                    m = mom.flatten()
-                    for index in range(len(gen['mom'])):
-                         print(gen['mom'][index])
-                         print(mom[index])
-                    mask = [[((gen['mom'][index] == mindex) & (gen['id'][index]==24)) for mindex in mom[index]] for index in range(len(gen['mom']))]
-                    #print('new m ',l,len(l))
-                    #print('flat ',list(itertools.chain(*l)),len(list(itertools.chain(*l))))
-                    idxs = np.where(mask)
-                    print('id ',idxs)
-                    for m in mask:
-                         print(np.where(m.any()))
-                    d = ak.JaggedArray.fromcounts(mom.counts, list(itertools.chain(*mask)))
-                    print('d ',d)
-                    print('d m ',d.flatten())
-                    print('where ',np.where(d.flatten()))
-                    #print('m 0 ',m[0])
-                    #print('mas 0 ',gen['mom'][0] ==m[0])
-                    #mask = ak.JaggedArray.fromcounts(mom.counts, [[ gen['mom'][index] == mindex for mindex in mom[index]] for index in range(len(gen['mom']))])
-                    #print('mask ',mask)
-                    #mask = (gen['id'] == 24) & np.isin(genpartmom, mom)
-
-                    gpt = []; geta = []; gphi = []; gm = []; gidx = []
-                    wgpt = []; wgeta = []; wgphi = []; wgm = []; 
-                    wsgpt = []; wsgeta = []; wsgphi = []; wsgm = [];
-                    for index in range(len(gen['mom'])):
-                         igpt = []; igeta = []; igphi =[]; igm = []; igidx = [];
-                         iwgpt = []; iwgeta = []; iwgphi = []; iwgm = [];
-                         iwsgpt = []; iwsgeta = []; iwsgphi = []; iwsgm = [];
-                         for midx in range(len(mom[index])):
-                              mask = (gen['id'][index] == 24) & np.isin(genpartmom[index],mom[index][midx])
-
-
-                              msort = gen['mass'][index][mask].argsort() # sort Ws by mass
-                              pt = gen['pt'][index][mask][msort]
-                              eta = gen['eta'][index][mask][msort]
-                              phi = gen['phi'][index][mask][msort]
-                              m = gen['mass'][index][mask][msort]
-
-                              igidx.append(list(np.where(mask.flatten()))[0])
-                              igpt.append(pt); igeta.append(eta); igphi.append(phi); igm.append(m);
-
-                              if len(pt)>0:
-                                   iwgpt.append(pt[0]); iwgeta.append(eta[0]); iwgphi.append(phi[0]); iwgm.append(m[0]);
-                                   if len(pt)>1:
-                                        iwsgpt.append(pt[0]); iwsgeta.append(eta[0]); iwsgphi.append(phi[0]); iwsgm.append(m[0]);
-
-                              #genD, genD_ele, genD_mu, genD_tau, genD_q = getWdaus(gen,np.where(mask.flatten())[0])
-
-                         gidx.append(list(igidx))
-                         gpt.append(igpt); geta.append(igeta); gphi.append(igphi); gm.append(igm);
-                         wgpt.append(iwgpt); wgeta.append(iwgeta); wgphi.append(iwgphi); wgm.append(iwgm);
-                         wsgpt.append(iwsgpt); wsgeta.append(iwsgeta); wsgphi.append(iwsgphi); wsgm.append(iwsgm);
-
-                    vs = TLorentzVectorArray.from_ptetaphim(ak.JaggedArray.fromiter(gpt),ak.JaggedArray.fromiter(geta),ak.JaggedArray.fromiter(gphi),ak.JaggedArray.fromiter(gm))
-                    w=TLorentzVectorArray.from_ptetaphim(ak.JaggedArray.fromiter(wgpt),ak.JaggedArray.fromiter(wgeta),ak.JaggedArray.fromiter(wgphi),ak.JaggedArray.fromiter(wgm))
-                    ws=TLorentzVectorArray.from_ptetaphim(ak.JaggedArray.fromiter(wsgpt),ak.JaggedArray.fromiter(wsgeta),ak.JaggedArray.fromiter(wsgphi),ak.JaggedArray.fromiter(wsgm))
-                    return gidx,vs,w,ws
+                    if((gen['id'][index][maskd] <=5).any()):
+                         for ij in range(len(jetHWWqq['q'])):
+                              if(jetHWWqq['mu'][ij]==0 and jetHWWqq['ele'][ij]==0 and jetHWWqq['tau'][ij]==0 and jetHWWqq['q'][ij]==1):
+                                   jetHWWqq['q'][ij] = 1
+                              else:
+                                   jetHWWqq['q'][ij] = 0
+                         
+                    return nProngs,jetHWWqq
 
                def getWs(gen,mom):
-                    genpartmom = gen['mom']
-                    mask = (gen['id'] == 24) & (ak.JaggedArray.fromiter([np.isin(genpartmom[index],mom) for index in range(len(genpartmom))]))
-                    idxs = np.where(mask.flatten())
-                    print('w id ',idxs)
-                    vs = TLorentzVectorArray.from_ptetaphim(
-                         gen['pt'][mask],
-                         gen['eta'][mask],
-                         gen['phi'][mask],
-                         gen['mass'][mask],
-                    )
-                    return idxs[0],vs
+                    genW = {}
+                    for key in ['W','Won','Woff']:
+                         genW[key] = {'pt': [], 'eta': [], 'phi': [], 'mass': [], 'idx':[]}
+
+                    genW['W']['nprong'] = []
+                    genW['W']['munuqq'] = []
+                    genW['W']['elenuqq'] = []
+                    genW['W']['taunuqq'] = []
+                    genW['W']['qqqq'] = []
+
+                    for index in range(len(gen['mom'])):
+                         igenW = {}
+                         for key in genW.keys():
+                              igenW[key] = {'pt': [], 'eta': [], 'phi': [], 'mass': [], 'idx':[]}
+
+                         nprongs_W = []
+                         jetHWWmunuqq_W = []
+                         jetHWWelenuqq_W = []
+                         jetHWWtaunuqq_W = []
+                         jetHWWqqqq_W = []
+                         for midx in range(len(mom[index])):
+                              mask = (gen['id'][index] == 24) & np.isin(gen['mom'][index],mom[index][midx])
+                              msort = gen['mass'][index][mask].argsort() # sort Ws by mass
+
+                              igenW['W']['idx'].append(list(np.where(mask.flatten()))[0])
+                              for prop in igenW['W'].keys():
+                                   if prop=='idx': continue
+                                   igenW['W'][prop].append(gen[prop][index][mask][msort])
+
+                              if len(gen['pt'][index][mask][msort])>0:
+                                   for prop in igenW['Won'].keys():
+                                        if prop=='idx': continue
+                                        igenW['Won'][prop].append(gen[prop][index][mask][msort][0])
+                                   if len(gen['pt'][index][mask][msort])>1:
+                                        for prop in igenW['Woff'].keys():
+                                             if prop=='idx': continue
+                                             igenW['Woff'][prop].append(gen[prop][index][mask][msort][1])
+
+                              nprongs,jetHWWqq = getWdaus(gen,np.where(mask.flatten())[0],index)
+                              nprongs_W.append(nprongs)
+                              jetHWWmunuqq_W.append(jetHWWqq['mu'])
+                              jetHWWelenuqq_W.append(jetHWWqq['ele'])
+                              jetHWWtaunuqq_W.append(jetHWWqq['tau'])
+                              jetHWWqqqq_W.append(jetHWWqq['q'])
+
+                         nprongs_W = np.array(nprongs_W)
+                         genW['W']['nprong'].append(nprongs_W[nprongs_W.nonzero()])
+                         
+                         def compress(arr_W):
+                              arr = [0]
+                              for ik,k in enumerate(arr_W):
+                                   if ik==0:
+                                        arr = arr_W[ik]
+                                   else:
+                                        arr |= arr_W[ik]
+                              return arr
+                         genW['W']['munuqq'].append(compress(jetHWWmunuqq_W))
+                         genW['W']['elenuqq'].append(compress(jetHWWelenuqq_W))
+                         genW['W']['taunuqq'].append(compress(jetHWWtaunuqq_W))
+                         genW['W']['qqqq'].append(compress(jetHWWqqqq_W))
+
+                         for key,gl in genW.items():
+                              for prop in ['pt','eta','phi','mass','idx']:
+                                   gl[prop].append(igenW[key][prop])
+
+                    genWs = {}
+                    for key,w in genW.items():
+                         genWs[key] = TLorentzVectorArray.from_ptetaphim(
+                              ak.JaggedArray.fromiter(genW[key]['pt']),
+                              ak.JaggedArray.fromiter(genW[key]['eta']),
+                              ak.JaggedArray.fromiter(genW[key]['phi']),
+                              ak.JaggedArray.fromiter(genW[key]['mass']),
+                         )
+
+                    nprongs = ak.JaggedArray.fromiter(genW['W']['nprong'])
+                    munuqq = ak.JaggedArray.fromiter(genW['W']['munuqq'])
+                    elenuqq = ak.JaggedArray.fromiter(genW['W']['elenuqq'])
+                    taunuqq = ak.JaggedArray.fromiter(genW['W']['taunuqq'])
+                    qqqq = ak.JaggedArray.fromiter(genW['W']['qqqq'])
+                    return nprongs,munuqq,elenuqq,taunuqq,qqqq,genWs['Won'],genWs['Woff']
 
                # finding Higgs
                genHidx,genH = getBosons(gen)
                jet_cross_genH = genH.cross(self.data['_jetp4'], nested=True)
                matchH = jet_cross_genH.i0.delta_r2(jet_cross_genH.i1) < self.jet_r2
                genHmatch = ak.JaggedArray.fromiter(genHidx[matchH.any()])
-               print('gen H ',genHmatch.counts,genHmatch)
+
+               print('counts ',self.data['_jetp4'].pt.counts)
 
                # only get Ws from Hs that are matched to a jet
-               genWidx, genW = getWs(gen,genHmatch)
+               nProngs, munuqq,elenuqq,taunuqq,qqqq, genW0, genW1 = getWs(gen,genHmatch)
+               jet_cross_genW0 =  self.data['_jetp4'].cross(genW0)
+               self.data['_jet_dR_W'] = jet_cross_genW0.i0.delta_r2(jet_cross_genW0.i1)
+               jet_cross_genW1 =  self.data['_jetp4'].cross(genW1)
+               self.data['_jet_dR_Wstar'] = jet_cross_genW1.i0.delta_r2(jet_cross_genW1.i1)
+               self.data['_jet_nProngs'] = nProngs
+               self.data['_jet_H_WW_munuqq'] = munuqq
+               self.data['_jet_H_WW_elenuqq'] = elenuqq
+               self.data['_jet_H_WW_4q'] = qqqq
 
-               genWidx, genW, genW0, genW1 = getWWs(gen,genHmatch)
-               print('gen w ',genWidx)
-               print('gen W jagg ',ak.JaggedArray.fromiter(genWidx))
-               print('gen W counts ',ak.JaggedArray.fromiter(genWidx).counts)
-               self.data['_jet_dR_W'] = self.data['_jetp4'].delta_r2(genW0)                    
-               self.data['_jet_dR_Wstar'] = self.data['_jetp4'].delta_r2(genW1)
-               
-               #genD, genD_ele, genD_mu, genD_tau, genD_q = getWdaus(gen,genWidx)
-               '''
-               matchD_ele = match(genD_ele).any()
-               matchD_mu = match(genD_mu).any()
-               matchD_tau = match(genD_tau).any()
-               matchD_q = match(genD_q)
-               matchD = match(genD).astype('int')
-               
-               self.data['_jet_nProngs'] = matchD.sum()
-               if(matchD_ele.any() or matchD_mu.any() or matchD_tau.any()):
-                    self.data['_jet_H_WW_elenuqq'] = matchD_ele.astype('int')
-                    self.data['_jet_H_WW_munuqq'] = matchD_mu.astype('int')
-               else:
-                    self.data['_jet_H_WW_4q'] = matchD_q.any().astype('int')
-               '''
           self.data.update(data)
 
      def convert(self,table,is_input=False):

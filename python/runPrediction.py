@@ -3,6 +3,8 @@ import numpy as np
 import awkward
 import onnxruntime
 import json
+import traceback
+import logging
 
 def _pad(a, min_length, max_length, value=0, dtype='float32'):
     if len(a) > max_length:
@@ -14,6 +16,24 @@ def _pad(a, min_length, max_length, value=0, dtype='float32'):
     else:
         return a.astype('float32')
 
+def configLogger(name, loglevel=logging.INFO, filename=None):
+    # define a Handler which writes INFO messages or higher to the sys.stderr
+    logger = logging.getLogger(name)
+    logger.setLevel(loglevel)
+    console = logging.StreamHandler()
+    console.setLevel(loglevel)
+    console.setFormatter(logging.Formatter(
+        '[%(asctime)s] %(levelname)s: %(message)s'))
+    logger.addHandler(console)
+    if filename:
+        logfile = logging.FileHandler(filename)
+        logfile.setLevel(loglevel)
+        logfile.setFormatter(logging.Formatter(
+            '[%(asctime)s] %(levelname)s: %(message)s'))
+        logger.addHandler(logfile)
+
+logger = logging.getLogger('NanoNN')
+configLogger('NanoNN', loglevel=logging.INFO)
 
 class ParticleNetJetTagsProducer(object):
 
@@ -22,7 +42,7 @@ class ParticleNetJetTagsProducer(object):
         with open(preprocess_path) as fp:
             self.prep_params = json.load(fp)
         if model_path:
-            print('Loading model %s' % model_path)
+            logger.info('Loading model %s' % model_path) 
             self.sess = onnxruntime.InferenceSession(model_path)
 
     def _preprocess(self, taginfo, eval_flags=None):
@@ -48,17 +68,14 @@ class ParticleNetJetTagsProducer(object):
             data[group_name] = np.nan_to_num(np.stack(data[group_name], axis=1))
         return data, counts
 
-    def pad_one(self, taginfo, jet_idx):
+    def pad_one(self, taginfo, ievent, jet_idx):
         data = {}
         for group_name in self.prep_params['input_names']:
             data[group_name] = {}
             info = self.prep_params[group_name]
             for var in info['var_names']:
-                #print(var)
-                a = taginfo[var][0][jet_idx]
+                a = taginfo[var][ievent][jet_idx]
                 a = _pad(a, min_length=info['var_length'], max_length=info['var_length'])
-                if self.debug:
-                    print(var, a)
                 data[group_name][var] = a.astype('float32')
         return data
 
@@ -88,7 +105,6 @@ class ParticleNetJetTagsProducer(object):
         preds = self.sess.run([], data)[0]
         outputs = {flav:preds[0, i] for i, flav in enumerate(self.prep_params['output_names'])}
         return outputs
-
 
 if __name__ == '__main__':
     import time

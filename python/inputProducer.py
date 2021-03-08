@@ -25,9 +25,12 @@ class InputProducer(Module):
           self.n_sv = self.pnTagger.prep_params['sv_features']['var_length']
           self.sv_names = self.pnTagger.prep_params['sv_features']['var_names']          
           self.jet_r2 = 0.8 * 0.8
-          
+
      def beginFile(self, inputFile, outputFile, inputTree, wrappedOutputTree, entriesRange=None):
-          self._uproot_tree = uproot.open(inputFile.GetName())['Events']
+          self.tagInfoLen = 0
+          self.fetch_step = 20
+          self.tagInfoMaker.init_file(inputFile, fetch_step=self.fetch_step)
+          self.tagInfo = None
 
           self.out = wrappedOutputTree
           self.out.branch("fj_idx", "I", 1)
@@ -35,6 +38,7 @@ class InputProducer(Module):
           self.out.branch("fj_eta", "F", 1)
           self.out.branch("fj_phi", "F", 1)
           self.out.branch("fj_mass", "F", 1)
+          self.out.branch("fj_msoftdrop", "F", 1)
           self.out.branch("fj_lsf3", "F", 1)
           self.out.branch("fj_deepTagMD_H4qvsQCD", "F", 1)
           self.out.branch("fj_deepTag_HvsQCD", "F", 1)
@@ -58,26 +62,38 @@ class InputProducer(Module):
 
      def analyze(self, event, ievent):
           absolute_event_idx = event._entry if event._tree._entrylist is None else event._tree._entrylist.GetEntry(event._entry)
-          #print('abs ',absolute_event_idx)
           event._allFatJets = Collection(event, "FatJet")
           if len(event._allFatJets)>0: 
-               table = self._uproot_tree.arrays(['FatJet_pt','FatJet_eta', 'FatJet_phi', 'FatJet_mass', 
-                                                 'FatJet_msoftdrop','FatJet_deepTag_H','FatJet_deepTag_QCD','FatJet_deepTag_QCDothers',
-                                                 '*FatJetPFCands*', 'PFCands*', 'SV*',
-                                                 'GenPart_*'],
-                                                namedecode='utf-8', entrystart=absolute_event_idx, entrystop=absolute_event_idx+1) 
-               self.tagInfo = self.tagInfoMaker.convert(table,True)
-               if self.tagInfo is None: return False
+               self.tagInfo = self.tagInfoMaker.load(absolute_event_idx, True)
+               if self.tagInfo is None: 
+                    print('taginfo none for ievent ',ievent,absolute_event_idx)
+                    return False
                else: return True
           else:
                return False
 
      def fill(self, event, ievent):
           absolute_event_idx = event._entry if event._tree._entrylist is None else event._tree._entrylist.GetEntry(event._entry)
+          if(absolute_event_idx%self.fetch_step==0):
+               self.tagInfoLen += len(self.tagInfo['_jetp4'].pt)
           skip = -1
+          if(absolute_event_idx<self.fetch_step):
+               ieventTag = ievent
+          else:
+               print('iev ',ievent, ' taginfo ',self.tagInfoLen)
+               ieventTag = ievent - self.tagInfoLen
+               print(self.tagInfo['_jetp4'].pt)
+               print(self.tagInfo['_jet_nProngs'])
+               #print(absolute_event_idx,self.fetch_step)
+               #print('abs ',int((absolute_event_idx)/self.fetch_step))
+               #print('iev ',ievent, 'len tag ',len(self.tagInfo['_jetp4'].pt))
+               #print('tag ',self.tagInfo['_jetp4'].pt)
+               #ieventTag = ievent-int((absolute_event_idx)/self.fetch_step)*self.fetch_step+1
+
+          nevt = 0
           for idx, fj in enumerate(event._allFatJets):
+               print('fj pt bef ',fj.pt, 'msof ',fj.msoftdrop)
                if idx>1 : continue
-               #print('fj pt ',fj.pt, fj.msoftdrop)
                if (fj.pt <= 300 or fj.msoftdrop <= 20):
                     skip = idx;
                     continue
@@ -86,17 +102,18 @@ class InputProducer(Module):
                     else: jidx = skip
                fj.idx = jidx
                fj = event._allFatJets[idx]
-               #print('taginfo ',self.tagInfo, jidx)
-               outputs = self.pnTagger.pad_one(self.tagInfo, jidx)
+               print('fj pt ',fj.pt, self.tagInfo['_jetp4'].pt[ieventTag])
+               outputs = self.pnTagger.pad_one(self.tagInfo, ieventTag, jidx)
                if outputs:
                     self.out.fillBranch("fj_idx", fj.idx)
                     self.out.fillBranch("fj_pt", fj.pt)
                     self.out.fillBranch("fj_eta", fj.eta)
                     self.out.fillBranch("fj_phi", fj.phi)
                     self.out.fillBranch("fj_mass", fj.mass)
+                    self.out.fillBranch("fj_msoftdrop", fj.msoftdrop)
                     self.out.fillBranch("fj_lsf3", fj.lsf3)
                     self.out.fillBranch("fj_deepTagMD_H4qvsQCD", fj.deepTagMD_H4qvsQCD)
-                    self.out.fillBranch("fj_deepTag_HvsQCD", self.tagInfo["_jet_deepTagHvsQCD"][0][jidx])
+                    self.out.fillBranch("fj_deepTag_HvsQCD", self.tagInfo["_jet_deepTagHvsQCD"][ieventTag][jidx])
                                                                                                                                                                
                     isHiggs = self.tagInfo['_isHiggs']
                     isTop = self.tagInfo['_isTop']
@@ -105,12 +122,12 @@ class InputProducer(Module):
                     self.out.fillBranch("fj_isQCD", isQCD)
                     self.out.fillBranch("fj_isTop", isTop)
 
-                    self.out.fillBranch("fj_H_WW_4q", self.tagInfo["_jet_H_WW_4q"][0][jidx])
-                    self.out.fillBranch("fj_H_WW_elenuqq", self.tagInfo["_jet_H_WW_elenuqq"][0][jidx])
-                    self.out.fillBranch("fj_H_WW_munuqq", self.tagInfo["_jet_H_WW_munuqq"][0][jidx])
-                    self.out.fillBranch("fj_nProngs", self.tagInfo["_jet_nProngs"][0][jidx])
-                    self.out.fillBranch("fj_dR_W", self.tagInfo["_jet_dR_W"][0][jidx])
-                    self.out.fillBranch("fj_dR_Wstar", self.tagInfo["_jet_dR_Wstar"][0][jidx])
+                    self.out.fillBranch("fj_H_WW_4q", self.tagInfo["_jet_H_WW_4q"][ieventTag][jidx])
+                    self.out.fillBranch("fj_H_WW_elenuqq", self.tagInfo["_jet_H_WW_elenuqq"][ieventTag][jidx])
+                    self.out.fillBranch("fj_H_WW_munuqq", self.tagInfo["_jet_H_WW_munuqq"][ieventTag][jidx])
+                    self.out.fillBranch("fj_nProngs", self.tagInfo["_jet_nProngs"][ieventTag][jidx])
+                    self.out.fillBranch("fj_dR_W", self.tagInfo["_jet_dR_W"][ieventTag][jidx])
+                    self.out.fillBranch("fj_dR_Wstar", self.tagInfo["_jet_dR_Wstar"][ieventTag][jidx])
 
                     for key in self.pf_names:
                          self.out.fillBranch(key, outputs['pf_features'][key])
@@ -118,6 +135,8 @@ class InputProducer(Module):
                          self.out.fillBranch(key, outputs['sv_features'][key])
 
                     self.out.fill()
+                    nevt+=1
+
           return True
 
 # define modules using the syntax 'name = lambda : constructor' to avoid having them loaded when not needed
