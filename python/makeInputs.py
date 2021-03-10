@@ -171,14 +171,14 @@ class ParticleNetTagInfoMaker(object):
                     )
                     return idx.flatten(),vs
                     
-               def getFinal(gen,mom,index):
+               def getFinal(gen,mom,index,pdgId=24):
                     mask = np.isin(gen['mom'][index],mom)
-                    maskW = (gen['id'][index] == 24) & mask
+                    maskW = (gen['id'][index] == pdgId) & mask
                     if maskW.any():
                          idxs = np.where(maskW)[0]
                          maskd = np.isin(gen['mom'][index],idxs)
-                         if ((gen['id'][index] == 24) & maskd).any():
-                              return getFinal(gen,idxs,index)
+                         if ((gen['id'][index] == pdgId) & maskd).any():
+                              return getFinal(gen,idxs,index,pdgId)
                          else:
                               return np.where(maskW)[0]
                     else:
@@ -228,7 +228,10 @@ class ParticleNetTagInfoMaker(object):
                          except:
                               match[key] = matchdau>0
 
-                    nProngs = np.sum(matchD,axis=1)
+                    try:
+                         nProngs = np.sum(matchD,axis=1)
+                    except:
+                         nProngs = matchD
                     jetHWWqq = {}
                     for key in ['mu','tau','ele','q']:
                          try: 
@@ -266,8 +269,10 @@ class ParticleNetTagInfoMaker(object):
                          jetHWWelenuqq_W = []
                          jetHWWtaunuqq_W = []
                          jetHWWqqqq_W = []
+
                          for midx in range(len(mom[index])):
-                              mask = (gen['id'][index] == 24) & np.isin(gen['mom'][index],mom[index][midx])
+                              idxH = getFinal(gen,mom[index][midx],index,25)
+                              mask = (gen['id'][index] == 24) & np.isin(gen['mom'][index],idxH)
                               msort = gen['mass'][index][mask].argsort() # sort Ws by mass
 
                               igenW['W']['idx'].append(list(np.where(mask.flatten()))[0])
@@ -292,8 +297,19 @@ class ParticleNetTagInfoMaker(object):
                               jetHWWqqqq_W.append(jetHWWqq['q'])
 
                          nprongs_W = np.array(nprongs_W)
-                         genW['W']['nprong'].append(nprongs_W[nprongs_W.nonzero()])
-                         
+
+                         def pad_with_zeros(A):
+                              out = np.zeros(len(self.data['_jetp4'][index].pt),dtype=int)
+                              r_= len(A)
+                              if(len(A)>len(self.data['_jetp4'][index].pt)):
+                                   out = A[0:len(self.data['_jetp4'][index].pt)]
+                              else:
+                                   out[0:r_] = A
+                              return out
+                              
+                         npro = pad_with_zeros(nprongs_W[nprongs_W.nonzero()])
+                         genW['W']['nprong'].append(npro)
+
                          def compress(arr_W):
                               arr = [0]
                               for ik,k in enumerate(arr_W):
@@ -302,10 +318,10 @@ class ParticleNetTagInfoMaker(object):
                                    else:
                                         arr |= arr_W[ik]
                               return arr
-                         genW['W']['munuqq'].append(compress(jetHWWmunuqq_W))
-                         genW['W']['elenuqq'].append(compress(jetHWWelenuqq_W))
-                         genW['W']['taunuqq'].append(compress(jetHWWtaunuqq_W))
-                         genW['W']['qqqq'].append(compress(jetHWWqqqq_W))
+                         genW['W']['munuqq'].append(pad_with_zeros(compress(jetHWWmunuqq_W)))
+                         genW['W']['elenuqq'].append(pad_with_zeros(compress(jetHWWelenuqq_W)))
+                         genW['W']['taunuqq'].append(pad_with_zeros(compress(jetHWWtaunuqq_W)))
+                         genW['W']['qqqq'].append(pad_with_zeros(compress(jetHWWqqqq_W)))
 
                          for key,gl in genW.items():
                               for prop in ['pt','eta','phi','mass','idx']:
@@ -333,14 +349,12 @@ class ParticleNetTagInfoMaker(object):
                matchH = jet_cross_genH.i0.delta_r2(jet_cross_genH.i1) < self.jet_r2
                genHmatch = ak.JaggedArray.fromiter(genHidx[matchH.any()])
 
-               print('counts ',self.data['_jetp4'].pt.counts)
-
                # only get Ws from Hs that are matched to a jet
                nProngs, munuqq,elenuqq,taunuqq,qqqq, genW0, genW1 = getWs(gen,genHmatch)
                jet_cross_genW0 =  self.data['_jetp4'].cross(genW0)
-               self.data['_jet_dR_W'] = jet_cross_genW0.i0.delta_r2(jet_cross_genW0.i1)
+               self.data['_jet_dR_W'] = jet_cross_genW0.i0.delta_r2(jet_cross_genW0.i1).pad(2).fillna(0)
                jet_cross_genW1 =  self.data['_jetp4'].cross(genW1)
-               self.data['_jet_dR_Wstar'] = jet_cross_genW1.i0.delta_r2(jet_cross_genW1.i1)
+               self.data['_jet_dR_Wstar'] = jet_cross_genW1.i0.delta_r2(jet_cross_genW1.i1).pad(2).fillna(0)
                self.data['_jet_nProngs'] = nProngs
                self.data['_jet_H_WW_munuqq'] = munuqq
                self.data['_jet_H_WW_elenuqq'] = elenuqq
@@ -384,7 +398,7 @@ class ParticleNetTagInfoMaker(object):
           self._uproot_stop = 0
           self._taginfo = None
 
-     def load(self, event_idx,is_input=False):
+     def load(self, event_idx, tag_info_len, is_input=False):
           if event_idx >= self._uproot_stop:
                self._uproot_start = event_idx
                self._uproot_stop = self._uproot_start + self._uproot_fetch_step
@@ -397,4 +411,6 @@ class ParticleNetTagInfoMaker(object):
                                                 basketcache=self._uproot_basketcache, keycache=self._uproot_keycache,
                                            )
                self._taginfo = self.convert(table,is_input)
-          return self._taginfo
+               tag_info_len += len(self._taginfo['_jetp4'].pt)
+
+          return self._taginfo, tag_info_len
