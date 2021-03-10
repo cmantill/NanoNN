@@ -28,7 +28,7 @@ class InputProducer(Module):
 
      def beginFile(self, inputFile, outputFile, inputTree, wrappedOutputTree, entriesRange=None):
           self.tagInfoLen = 0
-          self.fetch_step = 20
+          self.fetch_step = 1000
           self.tagInfoMaker.init_file(inputFile, fetch_step=self.fetch_step)
           self.tagInfo = None
 
@@ -42,6 +42,7 @@ class InputProducer(Module):
           self.out.branch("fj_lsf3", "F", 1)
           self.out.branch("fj_deepTagMD_H4qvsQCD", "F", 1)
           self.out.branch("fj_deepTag_HvsQCD", "F", 1)
+          self.out.branch("fj_PN_H4qvsQCD", "F", 1)
 
           self.out.branch("fj_isQCD", "I", 1)
           self.out.branch("fj_isTop", "I", 1)
@@ -64,9 +65,8 @@ class InputProducer(Module):
           absolute_event_idx = event._entry if event._tree._entrylist is None else event._tree._entrylist.GetEntry(event._entry)
           event._allFatJets = Collection(event, "FatJet")
           if len(event._allFatJets)>0: 
-               self.tagInfo = self.tagInfoMaker.load(absolute_event_idx, True)
+               self.tagInfo, self.tagInfoLen = self.tagInfoMaker.load(absolute_event_idx, self.tagInfoLen, True)
                if self.tagInfo is None: 
-                    print('taginfo none for ievent ',ievent,absolute_event_idx)
                     return False
                else: return True
           else:
@@ -74,25 +74,16 @@ class InputProducer(Module):
 
      def fill(self, event, ievent):
           absolute_event_idx = event._entry if event._tree._entrylist is None else event._tree._entrylist.GetEntry(event._entry)
-          if(absolute_event_idx%self.fetch_step==0):
-               self.tagInfoLen += len(self.tagInfo['_jetp4'].pt)
           skip = -1
           if(absolute_event_idx<self.fetch_step):
                ieventTag = ievent
           else:
-               print('iev ',ievent, ' taginfo ',self.tagInfoLen)
                ieventTag = ievent - self.tagInfoLen
-               print(self.tagInfo['_jetp4'].pt)
-               print(self.tagInfo['_jet_nProngs'])
-               #print(absolute_event_idx,self.fetch_step)
-               #print('abs ',int((absolute_event_idx)/self.fetch_step))
-               #print('iev ',ievent, 'len tag ',len(self.tagInfo['_jetp4'].pt))
-               #print('tag ',self.tagInfo['_jetp4'].pt)
-               #ieventTag = ievent-int((absolute_event_idx)/self.fetch_step)*self.fetch_step+1
-
+          # print('iev ',ievent, ' taginfo ',self.tagInfoLen, ' abs ',absolute_event_idx)
+          # print('evt tag ',ieventTag)
           nevt = 0
           for idx, fj in enumerate(event._allFatJets):
-               print('fj pt bef ',fj.pt, 'msof ',fj.msoftdrop)
+               #print('fj pt bef ',fj.pt, 'msof ',fj.msoftdrop)
                if idx>1 : continue
                if (fj.pt <= 300 or fj.msoftdrop <= 20):
                     skip = idx;
@@ -102,7 +93,7 @@ class InputProducer(Module):
                     else: jidx = skip
                fj.idx = jidx
                fj = event._allFatJets[idx]
-               print('fj pt ',fj.pt, self.tagInfo['_jetp4'].pt[ieventTag])
+               # print('fj pt ',fj.pt, self.tagInfo['_jetp4'].pt[ieventTag])
                outputs = self.pnTagger.pad_one(self.tagInfo, ieventTag, jidx)
                if outputs:
                     self.out.fillBranch("fj_idx", fj.idx)
@@ -114,7 +105,8 @@ class InputProducer(Module):
                     self.out.fillBranch("fj_lsf3", fj.lsf3)
                     self.out.fillBranch("fj_deepTagMD_H4qvsQCD", fj.deepTagMD_H4qvsQCD)
                     self.out.fillBranch("fj_deepTag_HvsQCD", self.tagInfo["_jet_deepTagHvsQCD"][ieventTag][jidx])
-                                                                                                                                                               
+                    self.out.fillBranch("fj_PN_H4qvsQCD", fj.particleNet_H4qvsQCD)
+
                     isHiggs = self.tagInfo['_isHiggs']
                     isTop = self.tagInfo['_isTop']
                     if(isHiggs==0 and isTop==0): isQCD = 1
