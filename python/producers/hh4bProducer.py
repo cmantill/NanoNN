@@ -9,8 +9,8 @@ from collections import Counter
 from PhysicsTools.NanoAODTools.postprocessing.framework.datamodel import Collection, Object
 from PhysicsTools.NanoAODTools.postprocessing.framework.eventloop import Module
 
-from PhysicsTools.NanoNN.triggerHelper import passTrigger
-from PhysicsTools.NanoNN.utils import deltaPhi, sumP4, deltaR, minValue, closest
+from PhysicsTools.NanoNN.helpers.triggerHelper import passTrigger
+from PhysicsTools.NanoNN.helpers.utils import deltaPhi, sumP4, deltaR, minValue, closest
 
 class hh4bProducer(Module):
 
@@ -21,8 +21,8 @@ class hh4bProducer(Module):
                         'WRITE_CACHE_FILE': False}
           
           if self._opts['run_mass_regression']:
-               from PhysicsTools.NanoNN.makeInputs import ParticleNetTagInfoMaker
-               from PhysicsTools.NanoNN.runPrediction import ParticleNetJetTagsProducer
+               from PhysicsTools.NanoNN.helpers.makeInputs import ParticleNetTagInfoMaker
+               from PhysicsTools.NanoNN.helpers.runPrediction import ParticleNetJetTagsProducer
                self.tagInfoMaker = ParticleNetTagInfoMaker(
                     fatjet_branch='FatJet', pfcand_branch='PFCands', sv_branch='SV', jetR=0.8)
                prefix = os.path.expandvars('$CMSSW_BASE/src/PhysicsTools/NanoNN/data')

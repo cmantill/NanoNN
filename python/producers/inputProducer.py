@@ -9,8 +9,8 @@ from collections import Counter
 from PhysicsTools.NanoAODTools.postprocessing.framework.datamodel import Collection, Object
 from PhysicsTools.NanoAODTools.postprocessing.framework.eventloop import Module
 
-from PhysicsTools.NanoNN.makeInputs import ParticleNetTagInfoMaker
-from PhysicsTools.NanoNN.runPrediction import ParticleNetJetTagsProducer
+from PhysicsTools.NanoNN.helpers.makeInputs import ParticleNetTagInfoMaker
+from PhysicsTools.NanoNN.helpers.runPrediction import ParticleNetJetTagsProducer
 
 class InputProducer(Module):
 
