@@ -5,6 +5,7 @@ import onnxruntime
 import json
 import traceback
 import logging
+import ROOT as r
 
 def _pad(a, min_length, max_length, value=0, dtype='float32'):
     if len(a) > max_length:
@@ -35,15 +36,47 @@ def configLogger(name, loglevel=logging.INFO, filename=None):
 logger = logging.getLogger('NanoNN')
 configLogger('NanoNN', loglevel=logging.INFO)
 
+def md5(fname):
+    '''https://stackoverflow.com/questions/3431825/generating-an-md5-checksum-of-a-file'''
+    import hashlib
+    hash_md5 = hashlib.md5()
+    with open(fname, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
+
+def copyFileEOS(source, destination, max_retry=1, sleep=10):
+    import subprocess
+    import time
+
+    cmd = 'xrdcp --silent -p -f {source} {destination}'.format(source=source, destination=destination)
+    print(cmd)
+    success = False
+    for count in range(max_retry):
+        p = subprocess.Popen(cmd, shell=True)
+        p.communicate()
+        if p.returncode == 0:
+            success = True
+            break
+        else:
+            time.sleep(sleep)
+    if not success:
+        raise RuntimeError("FAILED to copy file %s!" % source)
+
 class ParticleNetJetTagsProducer(object):
 
-    def __init__(self, preprocess_path, model_path=None, debug=False):
+    def __init__(self, preprocess_path, model_path=None, version=None, cache_suffix=None, debug=False):
         self.debug = debug
+        model_path = model_path.format(version=version)
+        preprocess_path = preprocess_path.format(version=version)
         with open(preprocess_path) as fp:
             self.prep_params = json.load(fp)
         if model_path:
             logger.info('Loading model %s' % model_path) 
             self.sess = onnxruntime.InferenceSession(model_path)
+            self.ver = version
+            self.cache_suffix = cache_suffix
+            self.md5 = md5(model_path)
 
     def _preprocess(self, taginfo, eval_flags=None):
         data = {}
@@ -85,13 +118,13 @@ class ParticleNetJetTagsProducer(object):
         outputs = {flav:awkward.JaggedArray.fromcounts(counts, preds[:, i]) for i, flav in enumerate(self.prep_params['output_names'])}
         return outputs
 
-    def predict_one(self, taginfo, event_idx, jet_idx):
+    def predict_one(self, taginfo, entry_idx, jet_idx, jet=None):
         data = {}
         for group_name in self.prep_params['input_names']:
             data[group_name] = []
             info = self.prep_params[group_name]
             for var in info['var_names']:
-                a = taginfo[var][event_idx][jet_idx]
+                a = taginfo[var][entry_idx][jet_idx]
                 a = (a - info['var_infos'][var]['median']) * info['var_infos'][var]['norm_factor']
                 a = np.clip(a, info['var_infos'][var].get('lower_bound', -5), info['var_infos'][var].get('upper_bound', 5))
                 try:
@@ -104,6 +137,67 @@ class ParticleNetJetTagsProducer(object):
             data[group_name] = np.nan_to_num(np.expand_dims(np.stack(data[group_name], axis=0), 0))
         preds = self.sess.run([], data)[0]
         outputs = {flav:preds[0, i] for i, flav in enumerate(self.prep_params['output_names'])}
+        if self.debug:
+            p4 = taginfo['_jetp4'][entry_idx][jet_idx]
+            print('pt,eta,phi', (jet.pt, jet.eta, jet.phi), (p4.pt, p4.eta, p4.phi))
+            print('outputs', outputs)
+        return outputs
+
+    def load_cache(self, inputFile):
+        
+        #print('infile ',inputFile.GetName(), inputFile.GetName().split('/')[-1])
+        '''
+        self.cache_fullpath = inputFile.GetName().replace('.root', '.%s%s.h5' % (self.cache_suffix, self.ver))
+        self.cachefile = os.path.basename(self.cache_fullpath)
+        try:
+            print('cache full path',self.cache_fullpath)
+            copyFileEOS(self.cache_fullpath, self.cachefile)
+            self._cache_df = pd.read_hdf(self.cachefile, key=self.md5)
+            self._cache_dict = self._cache_df.set_index(['event', 'jetidx']).to_dict(orient='index')
+            logger.info('Loaded cache from %s' % self.cache_fullpath)
+        except KeyError:
+            raise
+        except Exception:
+        '''
+        logger.warning('Cannot load the cache -- Will run the model from scratch...')
+        self._cache_df = None
+        self._cache_list = []
+        return self._cache_df is not None
+
+    def update_cache(self):
+        if len(self._cache_list) > 0:
+            logger.info('Updating the cache file to include %d new entries...' % len(self._cache_list))
+            df_list = [pd.DataFrame(self._cache_list)]
+            if self._cache_df is not None:
+                df_list.append(self._cache_df)
+                # load cache file again in case it has been updated by other jobs
+                try:
+                    copyFileEOS(self.cache_fullpath, self.cachefile)
+                    df_list.append(pd.read_hdf(self.cachefile, key=self.md5))
+                    logger.info('Reloaded cache from %s' % self.cache_fullpath)
+                except KeyError:
+                    raise
+                except Exception:
+                    pass
+            df = pd.concat(df_list).drop_duplicates(['event', 'jetidx'])
+            #try:
+            #    df.to_hdf(self.cachefile, key=self.md5, complevel=7, complib='blosc')
+            #    copyFileEOS(self.cachefile, self.cache_fullpath)
+            #    logger.info('New cache file saved to %s' % self.cache_fullpath)
+            #except Exception:
+            #    logger.error(traceback.format_exc())
+            #if os.path.exists(self.cachefile):
+            #    os.remove(self.cachefile)
+
+    def predict_with_cache(self, taginfo_producer, event_idx, jet_idx, jet=None):
+        outputs = None
+        if self._cache_df is not None:
+            outputs = self._cache_dict.get((event_idx, jet_idx))
+        if outputs is None:
+            taginfolen = 0
+            taginfo,taginfolen = taginfo_producer.load(event_idx,taginfolen)
+            outputs = self.predict_one(taginfo, int(event_idx - taginfo_producer._uproot_start), jet_idx, jet=jet)
+            self._cache_list.append({'event': event_idx, 'jetidx': jet_idx, **outputs})
         return outputs
 
 if __name__ == '__main__':
@@ -117,37 +211,61 @@ if __name__ == '__main__':
     parser.add_argument('--make_baseline', action='store_true')
     args = parser.parse_args()
 
-    from PhysicsTools.NanoNN.makeInputs import ParticleNetTagInfoMaker
-    from PhysicsTools.NanoNN.nnHelper import convert_prob
+    from PhysicsTools.NanoNN.helpers.makeInputs import ParticleNetTagInfoMaker
+    from PhysicsTools.NanoNN.helpers.nnHelper import convert_prob,ensemble
 
     fatjet_name = 'FatJet'
-    p = ParticleNetTagInfoMaker(fatjet_branch='FatJet', pfcand_branch='PFCands', sv_branch='SV', fatpfcand_branch='FatJetPFCands', jetR=0.8)
+    #p = ParticleNetTagInfoMaker(fatjet_branch='FatJet', pfcand_branch='PFCands', sv_branch='SV', fatpfcand_branch='FatJetPFCands', jetR=0.8)
+    tagInfoMaker = ParticleNetTagInfoMaker(fatjet_branch='FatJet', pfcand_branch='PFCands', sv_branch='SV')
+    iFile =  r.TFile.Open(args.input)
+    tagInfoMaker.init_file(iFile, fetch_step=1000)
+
     tree = uproot.open(args.input)['Events']
-    table = tree.arrays(['FatJet_pt','FatJet_eta', 'FatJet_phi', 'FatJet_mass', 'FatJet_msoftdrop', '*FatJetPFCands*', 'PFCands*', 'SV*',
-                         'FatJet_particleNetMD_Xbb'],
-                        namedecode='utf-8', entrystart=1, entrystop=2)
+    table = tree.arrays(['FatJet_pt','FatJet_eta', 'FatJet_phi', 'FatJet_mass',
+                         'FatJet_msoftdrop','FatJet_deepTag_H','FatJet_deepTag_QCD','FatJet_deepTag_QCDothers',
+                         '*FatJetPFCands*', 'PFCands*', 'SV*',
+                         'FatJetTo*_candIdx','FatJet_nPFCand',
+                         'GenPart_*'],
+                        #'FatJet_particleNetMD_Xbb'],
+                        namedecode='utf-8', entrystart=0, entrystop=2)
     start = time.time()
-    taginfo = p.convert(table)
+    #taginfo = tagInfoMaker.convert(table)
     diff = time.time() - start
-    print('--- Convert inputs: %f s total, %f s per jet ---' % (diff, diff / taginfo['pfcand_mask'].counts.sum()))
+    #print('--- Convert inputs: %f s total, %f s per jet ---' % (diff, diff / taginfo['pfcand_mask'].counts.sum()))
     # jetmass = tree.array('FatJet_msoftdrop')
     # eval_flags = (jetmass > 50) * (jetmass < 200)
     # jetmass = jetmass[eval_flags]
     eval_flags = None
 
     start = time.time()
-    nn = ParticleNetJetTagsProducer(args.preprocess, args.model)
+    prefix = os.path.expandvars('$CMSSW_BASE/src/PhysicsTools/NanoNN/data')
+    jetType = 'ak8'
+    versions = ['ak8V01a', 'ak8V01b', 'ak8V01c']
+    pnMassRegressions = [ParticleNetJetTagsProducer(
+        '%s/MassRegression/%s/{version}/preprocess.json' % (prefix, jetType),
+        '%s/MassRegression/%s/{version}/particle_net_regression.onnx' % (prefix, jetType),
+        version=ver, cache_suffix='mass') for ver in versions]
+    #nn = ParticleNetJetTagsProducer(args.preprocess, args.model)
+    for p in pnMassRegressions:
+        p.load_cache(iFile)
     diff = time.time() - start
     print('--- Setup model: %f s total' % (diff,))
 
     start = time.time()
-    outputs = nn.predict(taginfo, eval_flags)
+    evt_idx = 0
+    j_idx = 0
+    outputs = [p.predict_with_cache(tagInfoMaker, evt_idx, j_idx) for p in pnMassRegressions]
+    regressed_mass = ensemble(outputs, np.median)['mass']
+    print('regressed mass ',regressed_mass)
+
+    #outputs = nn.predict(taginfo, eval_flags)
     diff = time.time() - start
-    print('--- Run prediction: %f s total, %f s per jet ---' % (diff, diff / outputs['probQCDbb'].counts.sum()))
+    #print('--- Run prediction: %f s total, %f s per jet ---' % (diff, diff / outputs['probQCDbb'].counts.sum()))
     # print(outputs)
     # for k in outputs:
     #  print(k, outputs[k].content.mean())
 
+    '''
     if fatjet_name + '_particleNetMD_Xbb' in table:
         print('Compare w/ stored values')
         print('Stored values:\n ...', table[fatjet_name + '_particleNetMD_Xbb'][:5])
@@ -166,3 +284,4 @@ if __name__ == '__main__':
             with open('baseline.awkd', 'rb') as fin:
                 baseline = awkward.load(fin)
             print("Comparison to baseline:", (alloutputs == baseline).all().all())
+    '''
