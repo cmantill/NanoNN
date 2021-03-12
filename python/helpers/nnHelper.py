@@ -28,3 +28,7 @@ def convert_prob(jet, sigs, bkgs=None, prefix=''):
         return sigsum / (sigsum + bkgsum)
     except ZeroDivisionError:
         return -1
+
+def ensemble(outputs, func):
+    keys = outputs[0].keys()
+    return {k: func([o[k] for o in outputs]) for k in keys}

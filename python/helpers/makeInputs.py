@@ -154,7 +154,7 @@ class ParticleNetTagInfoMaker(object):
           self.data.update(data)
           
      def _make_jet(self, table):
-          from PhysicsTools.NanoNN.nnHelper import convert_prob
+          from PhysicsTools.NanoNN.helpers.nnHelper import convert_prob
           data = {}
           deepTag = {}
           deepTag['probH'] = self._get_array(table, self.fatjet_branch + '_deepTag_H')
@@ -424,15 +424,18 @@ class ParticleNetTagInfoMaker(object):
           self._uproot_stop = 0
           self._taginfo = None
 
-     def load(self, event_idx, tag_info_len, is_input=False):
+     def load(self, event_idx, tag_info_len, is_input=False, is_pfarr=False):
           if event_idx >= self._uproot_stop:
                self._uproot_start = event_idx
                self._uproot_stop = self._uproot_start + self._uproot_fetch_step
-               table = self._uproot_tree.arrays(['FatJet_pt','FatJet_eta', 'FatJet_phi', 'FatJet_mass',
-                                                 'FatJet_msoftdrop','FatJet_deepTag_H','FatJet_deepTag_QCD','FatJet_deepTag_QCDothers',
-                                                 '*FatJetPFCands*', 'PFCands*', 'SV*',
-                                                 'GenPart_*'],
-                                                namedecode='utf-8',
+               arr_toread = ['FatJet_pt','FatJet_eta', 'FatJet_phi', 'FatJet_mass',
+                             'FatJet_msoftdrop','FatJet_deepTag_H','FatJet_deepTag_QCD','FatJet_deepTag_QCDothers',
+                             '*FatJetPFCands*', 'PFCands*', 'SV*',
+                             'GenPart_*']
+               if is_pfarr:
+                    arr_toread.append('FatJetTo*_candIdx')
+                    arr_toread.append('FatJet_nPFCand')
+               table = self._uproot_tree.arrays(arr_toread, namedecode='utf-8',
                                                 entrystart=self._uproot_start, entrystop=self._uproot_stop,
                                                 basketcache=self._uproot_basketcache, keycache=self._uproot_keycache,
                                            )
