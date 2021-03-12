@@ -35,15 +35,17 @@ def deltaR(eta1, phi1, eta2=None, phi2=None):
 
 def closest(obj, collection, presel=lambda x, y: True):
     ret = None
+    retidx = None
     dr2Min = 1e6
-    for x in collection:
+    for idx,x in enumerate(collection):
         if not presel(obj, x):
             continue
         dr2 = deltaR2(obj, x)
         if dr2 < dr2Min:
             ret = x
+            retidx = idx
             dr2Min = dr2
-    return (ret, math.sqrt(dr2Min))
+    return (ret, math.sqrt(dr2Min), retidx)
 
 
 def polarP4(obj=None, pt='pt', eta='eta', phi='phi', mass='mass'):
