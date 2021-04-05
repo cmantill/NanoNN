@@ -66,9 +66,10 @@ def copyFileEOS(source, destination, max_retry=1, sleep=10):
 class ParticleNetJetTagsProducer(object):
 
     def __init__(self, preprocess_path, model_path=None, version=None, cache_suffix=None, debug=False):
-        self.debug = debug
-        model_path = model_path.format(version=version)
-        preprocess_path = preprocess_path.format(version=version)
+        self.debug = debug        
+        if version is not None:
+            model_path = model_path.format(version=version)
+            preprocess_path = preprocess_path.format(version=version)
         with open(preprocess_path) as fp:
             self.prep_params = json.load(fp)
         if model_path:
@@ -145,8 +146,6 @@ class ParticleNetJetTagsProducer(object):
 
     def load_cache(self, inputFile):
         
-        #print('infile ',inputFile.GetName(), inputFile.GetName().split('/')[-1])
-        '''
         self.cache_fullpath = inputFile.GetName().replace('.root', '.%s%s.h5' % (self.cache_suffix, self.ver))
         self.cachefile = os.path.basename(self.cache_fullpath)
         try:
@@ -158,8 +157,7 @@ class ParticleNetJetTagsProducer(object):
         except KeyError:
             raise
         except Exception:
-        '''
-        logger.warning('Cannot load the cache -- Will run the model from scratch...')
+            logger.warning('Cannot load the cache -- Will run the model from scratch...')
         self._cache_df = None
         self._cache_list = []
         return self._cache_df is not None
@@ -180,14 +178,16 @@ class ParticleNetJetTagsProducer(object):
                 except Exception:
                     pass
             df = pd.concat(df_list).drop_duplicates(['event', 'jetidx'])
-            #try:
-            #    df.to_hdf(self.cachefile, key=self.md5, complevel=7, complib='blosc')
-            #    copyFileEOS(self.cachefile, self.cache_fullpath)
-            #    logger.info('New cache file saved to %s' % self.cache_fullpath)
-            #except Exception:
-            #    logger.error(traceback.format_exc())
-            #if os.path.exists(self.cachefile):
-            #    os.remove(self.cachefile)
+            print('going to save to ', self.cache_fullpath)
+            if 'lpcdihiggsboost' in self.cache_fullpath:
+                try:
+                    df.to_hdf(self.cachefile, key=self.md5, complevel=7, complib='blosc')
+                    copyFileEOS(self.cachefile, self.cache_fullpath)
+                    logger.info('New cache file saved to %s' % self.cache_fullpath)
+                except Exception:
+                    logger.error(traceback.format_exc())
+            if os.path.exists(self.cachefile):
+                os.remove(self.cachefile)
 
     def predict_with_cache(self, taginfo_producer, event_idx, jet_idx, jet=None):
         outputs = None
@@ -195,7 +195,7 @@ class ParticleNetJetTagsProducer(object):
             outputs = self._cache_dict.get((event_idx, jet_idx))
         if outputs is None:
             taginfolen = 0
-            taginfo,taginfolen = taginfo_producer.load(event_idx,taginfolen)
+            taginfo,taginfolen = taginfo_producer.load(event_idx,taginfolen,False,True)
             outputs = self.predict_one(taginfo, int(event_idx - taginfo_producer._uproot_start), jet_idx, jet=jet)
             self._cache_list.append({'event': event_idx, 'jetidx': jet_idx, **outputs})
         return outputs

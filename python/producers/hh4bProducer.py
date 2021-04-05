@@ -20,14 +20,24 @@ configLogger('nano', loglevel=logging.INFO)
 
 lumi_dict = {2016: 35.92, 2017: 41.53, 2018: 59.74}
 
+class _NullObject:
+    '''An null object which does not store anything, and does not raise exception.'''
+    def __bool__(self):
+        return False
+    def __nonzero__(self):
+        return False
+    def __getattr__(self, name):
+        pass
+    def __setattr__(self, name, value):
+        pass
+
 class METObject(Object):
     def p4(self):
         return polarP4(self, eta=None, mass=None)
         
 class hh4bProducer(Module):
     
-    def __init__(self, year):
-        # need to implement args
+    def __init__(self, year, **kwargs):
         self.year = year
         self.jetType = 'ak8'
         self._jetConeSize = 0.8
@@ -36,8 +46,9 @@ class hh4bProducer(Module):
         self._fj_gen_name = 'GenJetAK8'
         self._sj_gen_name = 'SubGenJetAK8'
         self._opts = {'run_mass_regression': True, 'mass_regression_versions': ['ak8V01a', 'ak8V01b', 'ak8V01c'],
-                      'WRITE_CACHE_FILE': False}
+                      'WRITE_CACHE_FILE': False, 'option': 5}
         
+        # set up mass regression
         if self._opts['run_mass_regression']:
             from PhysicsTools.NanoNN.helpers.makeInputs import ParticleNetTagInfoMaker
             from PhysicsTools.NanoNN.helpers.runPrediction import ParticleNetJetTagsProducer
@@ -59,16 +70,44 @@ class hh4bProducer(Module):
         self.DeepFlavB_WP_T = {2016: 0.7489, 2017: 0.7489, 2018: 0.7264}[self.year]
         
         # jet met corrections
-        #self.jetmetCorr = JetMETCorrector(year=self.year, jetType="AK4PFchs", **self._jmeSysts)
-        #self.fatjetCorr = JetMETCorrector(year=self.year, jetType="AK8PFPuppi", **self._jmeSysts)
-        #self.subjetCorr = JetMETCorrector(year=self.year, jetType="AK4PFPuppi", **self._jmeSysts)
-        
-        #def beginJob(self):
-        #if self._needsJMECorr:
-        #      self.jetmetCorr.beginJob()
-        #self.fatjetCorr.beginJob()
-        #      self.subjetCorr.beginJob()
-        
+        # jet mass scale/resolution: https://github.com/cms-nanoAOD/nanoAOD-tools/blob/a4b3c03ca5d8f4b8fbebc145ddcd605c7553d767/python/postprocessing/modules/jme/jetmetHelperRun2.py#L45-L58
+        self._jmsValues = {2016: [1.00, 0.9906, 1.0094],
+                           2017: [1.0016, 0.978, 0.986], # tuned to our top control region
+                           2018: [0.997, 0.993, 1.001]}[self.year]
+        self._jmrValues = {2016: [1.00, 1.0, 1.09],  # tuned to our top control region
+                           2017: [1.03, 1.00, 1.07],
+                           2018: [1.065, 1.031, 1.099]}[self.year]
+        # what about jet met corrections?
+        self._needsJMECorr = False
+        if self._needsJMECorr:
+            self.jetmetCorr = JetMETCorrector(year=self.year, jetType="AK4PFchs", **self._jmeSysts)
+            self.fatjetCorr = JetMETCorrector(year=self.year, jetType="AK8PFPuppi", **self._jmeSysts)
+            self.subjetCorr = JetMETCorrector(year=self.year, jetType="AK4PFPuppi", **self._jmeSysts)
+
+        # for bdt
+        #self._sfbdt_files = [
+        #    os.path.expandvars(
+        #        '$CMSSW_BASE/src/PhysicsTools/NanoHRTTools/data/sfBDT/ak15/xgb_train_qcd.model.%d' % idx)
+        #    for idx in range(10)]
+        #self._sfbdt_vars = ['fj_2_tau21', 'fj_2_sj1_rawmass', 'fj_2_sj2_rawmass',
+        #                    'fj_2_ntracks_sv12', 'fj_2_sj1_sv1_pt', 'fj_2_sj2_sv1_pt']
+
+        # selection
+        if self._opts['option']==5: print('Select Events with FatJet1 pT > 200 GeV and PNetXbb > 0.8 only')
+        elif self._opts['option']==10: print('Select FatJets with pT > 200 GeV and tau3/tau2 < 0.54 only')
+
+        # nevents
+        self.h_nevents = ROOT.TH1D('NEvents', 'NEvents', 1, 1, 2);
+        self.h_genwgt = ROOT.TH1D('genweight', 'genweight', 1, 0, 1)
+
+    def beginJob(self):
+        if self._needsJMECorr:
+            self.jetmetCorr.beginJob()
+            self.fatjetCorr.beginJob()
+            self.subjetCorr.beginJob()
+        # for bdt
+        # self.xgb = XGBEnsemble(self._sfbdt_files, self._sfbdt_vars)
+
     def beginFile(self, inputFile, outputFile, inputTree, wrappedOutputTree):
         self.isMC = bool(inputTree.GetBranch('genWeight'))
         
@@ -84,20 +123,8 @@ class hh4bProducer(Module):
                 
         self.out = wrappedOutputTree
         
-        # trigger variables
-        self.out.branch("passTrigHad", "O")
-        
         # weight variables
         self.out.branch("weight", "F")
-        self.out.branch("genMTT", "F")
-        self.out.branch("triggerEffWeight", "F")
-        self.out.branch("triggerEff3DWeight", "F")
-        self.out.branch("triggerEffMCWeight", "F")
-        self.out.branch("triggerEffMC3DWeight", "F")
-        self.out.branch("pileupWeight", "F")
-        self.out.branch("pileupWeightUp", "F")
-        self.out.branch("pileupWeightDown", "F")
-        self.out.branch("totalWeight", "F")
         
         # event variables
         self.out.branch("met", "F")
@@ -110,8 +137,8 @@ class hh4bProducer(Module):
             self.out.branch(prefix + "Phi", "F")
             self.out.branch(prefix + "Mass", "F")
             self.out.branch(prefix + "MassSD", "F")
-            self.out.branch(prefix + "MassRegressed", "F")
             self.out.branch(prefix + "MassSD_UnCorrected", "F")
+            self.out.branch(prefix + "MassRegressed", "F")
             self.out.branch(prefix + "PNetXbb", "F")
             self.out.branch(prefix + "PNetQCDb", "F")
             self.out.branch(prefix + "PNetQCDbb", "F")
@@ -131,6 +158,13 @@ class hh4bProducer(Module):
             self.out.branch(prefix + "PtOverMHH", "F")
             self.out.branch(prefix + "PtOverMSD", "F")
             
+            # uncertainties
+            if self.isMC:
+                self.out.branch(prefix + "MassSD_JMS_Down", "F")
+                self.out.branch(prefix + "MassSD_JMS_Up", "F")
+                self.out.branch(prefix + "MassSD_JMR_Down", "F")
+                self.out.branch(prefix + "MassSD_JMR_Up", "F")
+
         # dihiggs variables
         self.out.branch("hh_pt", "F")
         self.out.branch("hh_eta", "F")
@@ -176,6 +210,7 @@ class hh4bProducer(Module):
             self.out.branch(prefix + "Id", "I")
             
         # matching variables
+        '''
         if self.isMC:
             for idx in ([1, 2]):
                 prefix = 'genHiggs%i'%idx
@@ -186,7 +221,8 @@ class hh4bProducer(Module):
             self.out.branch("genHH_eta", "F")
             self.out.branch("genHH_phi", "F")
             self.out.branch("genHH_mass", "F")
-               
+        '''
+
     def endFile(self, inputFile, outputFile, inputTree, wrappedOutputTree):
         if self._opts['run_mass_regression'] and self._opts['WRITE_CACHE_FILE']:
             for p in self.pnMassRegressions:
@@ -197,6 +233,13 @@ class hh4bProducer(Module):
             for f in os.listdir('.'):
                 if f.endswith('.h5'):
                     os.remove(f)
+
+        if self.isMC:
+            cwd = ROOT.gDirectory
+            outputFile.cd()
+            self.h_nevents.Write()
+            self.h_genwgt.Write()
+            cwd.cd()
                     
     def loadGenHistory(self, event, fatjets):
         # gen matching
@@ -277,39 +320,35 @@ class hh4bProducer(Module):
             fj.genT, fj.dr_T, fj.genTidx = closest(fj, hadGenTops)
             fj.genLepT, fj.dr_LepT, fj.genLepidx = closest(fj, lepGenTops)
                
-    def fillBaseEventInfo(self, event):
-        self.out.fillBranch("met", event.met.pt)
-        
-    def _get_filler(self, obj):
-        def filler(branch, value, default=0):
-            self.out.fillBranch(branch, value if obj else default)
-        return filler
-
     def selectLeptons(self, event):
         # do lepton selection
+        event.vbfLeptons = [] # usef for vbf removal
         event.looseLeptons = []  # used for lepton counting
         event.cleaningElectrons = []
         event.cleaningMuons = []
         
         electrons = Collection(event, "Electron")
         for el in electrons:
+            el.Id = el.charge * (11)
+            if el.pt > 7 and abs(el.eta) < 2.5 and abs(el.dxy) < 0.05 and abs(el.dz) < 0.2:
+                event.vbfLeptons.append(el)
             if el.pt > 35 and abs(el.eta) <= 2.5 and el.miniPFRelIso_all <= 0.2 and el.cutBased:
-                # and abs(el.dxy) < 0.05 and abs(el.dz) < 0.2 
-                el.Id = el.charge * (11)
                 event.looseLeptons.append(el)
             if el.pt > 30 and el.mvaFall17V2noIso_WP90:
                 event.cleaningElectrons.append(el)
                 
         muons = Collection(event, "Muon")
         for mu in muons:
+            mu.Id = mu.charge * (13)
+            if mu.pt > 5 and abs(mu.eta) < 2.4 and abs(mu.dxy) < 0.05 and abs(mu.dz) < 0.2:
+                event.vbfLeptons.append(mu)
             if mu.pt > 30 and abs(mu.eta) <= 2.4 and mu.tightId and mu.miniPFRelIso_all <= 0.2:
-                #and abs(mu.dxy) < 0.05 and abs(mu.dz) < 0.2 
-                mu.Id = mu.charge * (13)
                 event.looseLeptons.append(mu)
             if mu.pt > 30 and mu.looseId:
                 event.cleaningMuons.append(mu)
 
         event.looseLeptons.sort(key=lambda x: x.pt, reverse=True)
+        event.vbfLeptons.sort(key=lambda x: x.pt, reverse=True)
 
     def correctJetsAndMET(self, event):
         # correct Jets and MET
@@ -322,26 +361,35 @@ class hh4bProducer(Module):
         # need to implement JetMET corrections
         # jet mass resolution smearing
         
-        # link fatjet to subjets and recompute softdrop mass
+        # link fatjet to subjets 
         for idx, fj in enumerate(event._allFatJets):
             fj.idx = idx
             fj.is_qualified = True
             fj.subjets = get_subjets(fj, event.subjets, ('subJetIdx1', 'subJetIdx2'))
-            fj.msoftdrop = sumP4(*fj.subjets).M()
+            fj.Xbb = (fj.ParticleNetMD_probXbb/(1.0 - fj.ParticleNetMD_probXcc - fj.ParticleNetMD_probXqq))
+            fj.msoftdropJMS = fj.msoftdrop*self._jmsValues[0]
+            # do we need to recompute the softdrop mass?
+            # fj.msoftdrop = sumP4(*fj.subjets).M()
             
         # sort fat jets
         event._vbfFatJets = sorted(event._allFatJets, key=lambda x: x.pt, reverse=True)  # sort by pt
-        event._allFatJets = sorted(event._allFatJets, key=lambda x: (x.ParticleNetMD_probXbb/(1.0 - x.ParticleNetMD_probXcc - x.ParticleNetMD_probXqq)), reverse = True) # sort by PnXbb score 
+        event._allFatJets = sorted(event._allFatJets, key=lambda x: x.Xbb, reverse = True) # sort by PnXbb score  
         
         # select jets
         event.fatjets = [fj for fj in event._allFatJets if fj.pt > 200 and abs(fj.eta) < 2.4 and (fj.jetId & 2)]
         event.ak4jets = [j for j in event._allJets if j.pt > 25 and abs(j.eta) < 2.4 and (j.jetId & 4)]
         event.ht = sum([j.pt for j in event.ak4jets])
-        event.vbffatjets = [fj for fj in event._vbfFatJets if fj.pt > 200 and abs(fj.eta) < 2.4 and (fj.jetId & 2) and closest(fj, event.looseLeptons)[1] >= 0.8]
-        event.vbfak4jets = [j for j in  event._allJets if j.pt > 30 and abs(j.eta) < 2.5]
 
-        # b-tag AK4 jet selection
-        # TODO: do these jets need a kinematic selection?
+        # vbf
+        # for ak4: pick a pair of opposite eta jets that maximizes pT
+        # pT>25 GeV, |eta|<4.7, lepton cleaning event
+        event.vbffatjets = [fj for fj in event._vbfFatJets if fj.pt > 200 and abs(fj.eta) < 2.4 and (fj.jetId & 2) and closest(fj, event.looseLeptons)[1] >= 0.8]
+        vbfjetid = 3 if self.year == 2017 else 2
+        event.vbfak4jets = [j for j in event._allJets if j.pt > 25 and abs(j.eta) < 4.7 and (j.jetId >= vbfjetid) \
+                            and ( (j.pt < 50 and j.puId>=6) or (j.pt > 50) ) and closest(j, event.vbffatjets)[1] > 1.2 \
+                            and closest(j, event.vbfLeptons)[1] >= 0.4]
+
+        # b-tag AK4 jet selection - these jets don't have a kinematic selection
         event.bljets = []
         event.bmjets = []
         event.btjets = []
@@ -355,7 +403,13 @@ class hh4bProducer(Module):
                 event.btjets.append(j)  
             if j.btagDeepB > self.DeepCSV_WP_M:
                 event.bmjetsCSV.append(j)
-        
+
+        jpt_thr = 40; jeta_thr = 2.5;
+        if self.year == 2016:
+            jpt_thr = 30; jeta_thr = 2.4;
+        event.bmjets = [j for j in event.bmjets if j.pt > jpt_thr and abs(j.eta) < jeta_thr and (j.jetId >= 4) and (j.puId >=2)]
+        self.nBTaggedJets = len(event.bmjets)
+ 
     def evalMassRegression(self, event, jets):
         for j in jets:
             if self._opts['run_mass_regression']:
@@ -364,58 +418,74 @@ class hh4bProducer(Module):
             else:
                 j.regressed_mass = 0          
 
+    def fillBaseEventInfo(self, event):
+        self.out.fillBranch("met", event.met.pt)
+        self.out.fillBranch("weight", event.gweight)
+
+    def _get_filler(self, obj):
+        def filler(branch, value, default=0):
+            self.out.fillBranch(branch, value if obj else default)
+        return filler
+
     def fillFatJetInfo(self, event, fatjets):
         for idx in ([1, 2]):
             prefix = 'fatJet%i' % idx
             fj = fatjets[idx - 1]
+            fill_fj = self._get_filler(fj)
+            fill_fj(prefix + "Pt", fj.pt)
+            fill_fj(prefix + "Eta", fj.eta)
+            fill_fj(prefix + "Phi", fj.phi)
+            fill_fj(prefix + "Mass", fj.mass)
+            fill_fj(prefix + "MassSD", fj.msoftdropJMS) # missing JER
+            fill_fj(prefix + "MassRegressed", fj.regressed_mass)
+            fill_fj(prefix + "MassSD_UnCorrected", fj.msoftdrop)
+            fill_fj(prefix + "PNetXbb", fj.Xbb)
+            fill_fj(prefix + "PNetQCDb", fj.ParticleNetMD_probQCDb)
+            fill_fj(prefix + "PNetQCDbb", fj.ParticleNetMD_probQCDbb)
+            fill_fj(prefix + "PNetQCDc", fj.ParticleNetMD_probQCDc)
+            fill_fj(prefix + "PNetQCDcc", fj.ParticleNetMD_probQCDcc)
+            fill_fj(prefix + "PNetQCDothers", fj.ParticleNetMD_probQCDothers)
+            fill_fj(prefix + "Tau3OverTau2", fj.tau3/fj.tau2)
             
-            self.out.fillBranch(prefix + "Pt", fj.pt)
-            self.out.fillBranch(prefix + "Eta", fj.eta)
-            self.out.fillBranch(prefix + "Phi", fj.phi)
-            self.out.fillBranch(prefix + "Mass", fj.mass)
-            self.out.fillBranch(prefix + "MassSD", fj.msoftdrop) #*jmsValues[0]
-            self.out.fillBranch(prefix + "MassRegressed", fj.regressed_mass)
-            self.out.fillBranch(prefix + "MassSD_UnCorrected", fj.msoftdrop)
-            self.out.fillBranch(prefix + "PNetXbb", (fj.ParticleNetMD_probXbb/(1.0 - fj.ParticleNetMD_probXcc - fj.ParticleNetMD_probXqq)))
-            self.out.fillBranch(prefix + "PNetQCDb", fj.ParticleNetMD_probQCDb)
-            self.out.fillBranch(prefix + "PNetQCDbb", fj.ParticleNetMD_probQCDbb)
-            self.out.fillBranch(prefix + "PNetQCDc", fj.ParticleNetMD_probQCDc)
-            self.out.fillBranch(prefix + "PNetQCDcc", fj.ParticleNetMD_probQCDcc)
-            self.out.fillBranch(prefix + "PNetQCDothers", fj.ParticleNetMD_probQCDothers)
-            self.out.fillBranch(prefix + "Tau3OverTau2", fj.tau3/fj.tau2)
+            # uncertainties
+            if self.isMC:
+                fill_fj(prefix + "MassSD_JMS_Down", (self._jmsValues[1]/self._jmsValues[0])*fj.msoftdrop)
+                fill_fj(prefix + "MassSD_JMS_Up",  (self._jmsValues[2]/self._jmsValues[0])*fj.msoftdrop)
+                fill_fj(prefix + "MassSD_JMR_Down", fj.msoftdropJMS)
+                fill_fj(prefix + "MassSD_JMR_Up", fj.msoftdropJMS)
             
             # lepton variables
             hasMuon = True if (closest(fj, event.cleaningMuons)[1] < 1.0) else False
             hasElectron = True if (closest(fj, event.cleaningElectrons)[1] < 1.0) else False
-            self.out.fillBranch(prefix + "HasMuon", hasMuon)
-            self.out.fillBranch(prefix + "HasElectron", hasElectron)
+            fill_fj(prefix + "HasMuon", hasMuon)
+            fill_fj(prefix + "HasElectron", hasElectron)
 
             # b jets
             hasBJetCSVLoose = True if (closest(fj, event.bljets)[1] < 1.0) else False
             hasBJetCSVMedium = True if (closest(fj, event.bmjets)[1] < 1.0) else False
             hasBJetCSVTight = True if (closest(fj, event.btjets)[1] < 1.0) else False
-            self.out.fillBranch(prefix + "HasBJetCSVLoose", hasBJetCSVLoose)
-            self.out.fillBranch(prefix + "HasBJetCSVMedium", hasBJetCSVMedium)
-            self.out.fillBranch(prefix + "HasBJetCSVTight", hasBJetCSVTight)
+            fill_fj(prefix + "HasBJetCSVLoose", hasBJetCSVLoose)
+            fill_fj(prefix + "HasBJetCSVMedium", hasBJetCSVMedium)
+            fill_fj(prefix + "HasBJetCSVTight", hasBJetCSVTight)
 
             nb_fj_opp_ = 0
             for j in event.bmjetsCSV:
                 if abs(deltaPhi(j, fj)) > 2.5 and j.pt>25:
                     nb_fj_opp_ += 1
             hasBJetOpp = True if (nb_fj_opp_>0) else False
-            self.out.fillBranch(prefix + "OppositeHemisphereHasBJet", hasBJetOpp)
+            fill_fj(prefix + "OppositeHemisphereHasBJet", hasBJetOpp)
             
             ptovermsd = -1 if fj.msoftdrop<=0 else fj.pt/fj.msoftdrop
-            self.out.fillBranch(prefix + "PtOverMSD", ptovermsd)
+            fill_fj(prefix + "PtOverMSD", ptovermsd)
 
             # matching variables
             if self.isMC:
                 # info of the closest genH
-                self.out.fillBranch(prefix + "GenMatchIndex", fj.genHidx if fj.genHidx else -1)
+                fill_fj(prefix + "GenMatchIndex", fj.genHidx if fj.genHidx else -1)
 
         # hh system
-        h1Jet = polarP4(fatjets[0])
-        h2Jet = polarP4(fatjets[1])
+        h1Jet = polarP4(fatjets[0],mass='msoftdropJMS')
+        h2Jet = polarP4(fatjets[1],mass='msoftdropJMS')
         self.out.fillBranch("hh_pt", (h1Jet+h2Jet).Pt())
         self.out.fillBranch("hh_eta", (h1Jet+h2Jet).Eta())
         self.out.fillBranch("hh_phi", (h1Jet+h2Jet).Phi())
@@ -432,45 +502,95 @@ class hh4bProducer(Module):
         self.out.fillBranch("mj2_over_mj1", mj2overmj1)
 
     def fillJetInfo(self, event, jets):
-        for idx in range(len(jets)):
-            if idx>3: continue
-            prefix = 'jet%i'%(idx+1)
-            j = jets[idx]
-            self.out.fillBranch(prefix + "Pt", j.pt)
-            self.out.fillBranch(prefix + "Eta", j.eta)
-            self.out.fillBranch(prefix + "Phi", j.phi)
-
+        nBTaggedJets = 0
+        for idx in ([1, 2, 3, 4]):
+            j = jets[idx-1] if len(jets)>idx-1 else _NullObject()
+            prefix = 'jet%i'%(idx)
+            fillBranch = self._get_filler(j)
+            fillBranch(prefix + "Pt", j.pt)
+            fillBranch(prefix + "Eta", j.eta)
+            fillBranch(prefix + "Phi", j.phi)
+        self.out.fillBranch("nBTaggedJets", self.nBTaggedJets)
 
     def fillVBFFatJetInfo(self, event, fatjets):
         for idx in ([1, 2]):
-            prefix = 'vbffatJet%i' % idx
-            fj = fatjets[idx - 1]
-            self.out.fillBranch(prefix + "Pt", fj.pt)
-            self.out.fillBranch(prefix + "Eta", fj.eta)
-            self.out.fillBranch(prefix + "Phi", fj.phi)
-            self.out.fillBranch(prefix + "PNetXbb", (fj.ParticleNetMD_probXbb/(1.0 - fj.ParticleNetMD_probXcc - fj.ParticleNetMD_probXqq)))
+            fj = fatjets[idx-1] if len(fatjets)>idx-1 else _NullObject()
+            prefix = 'vbffatJet%i' % (idx)
+            fillBranch = self._get_filler(fj)
+            fillBranch(prefix + "Pt", fj.pt)
+            fillBranch(prefix + "Eta", fj.eta)
+            fillBranch(prefix + "Phi", fj.phi)
+            fillBranch(prefix + "PNetXbb", fj.Xbb)
+            
+    def fillVBFJetInfo(self, event, jets):
+        for idx in ([1, 2]):
+            j = jets[idx-1]if len(jets)>idx-1 else _NullObject()
+            prefix = 'vbfjet%i' % (idx)
+            fillBranch = self._get_filler(j)
+            fillBranch(prefix + "Pt", j.pt)
+            fillBranch(prefix + "Eta", j.eta)
+            fillBranch(prefix + "Phi", j.phi)
+            fillBranch(prefix + "Mass", j.mass)
 
+        isVBFtag = 0
+        if len(jets)>1:
+            Jet1 = polarP4(jets[0])
+            Jet2 = polarP4(jets[1])
+            isVBFtag = 0
+            if((Jet1+Jet2).M() > 500. and abs(Jet1.Eta() - Jet2.Eta()) > 4): isVBFtag = 1
+            self.out.fillBranch('dijetmass', (Jet1+Jet2).M())
+        else:
+            self.out.fillBranch('dijetmass', 0)
+        self.out.fillBranch('isVBFtag', isVBFtag)
+            
+    def fillLeptonInfo(self, event, leptons):
+        for idx in ([1, 2]):
+            lep = leptons[idx-1]if len(leptons)>idx-1 else _NullObject()
+            prefix = 'lep%i'%(idx)
+            fillBranch = self._get_filler(lep)
+            fillBranch(prefix + "Pt", lep.pt)
+            fillBranch(prefix + "Eta", lep.eta)
+            fillBranch(prefix + "Phi", lep.phi)
+            fillBranch(prefix + "Id", lep.Id)
+    
     def analyze(self, event):
         """process event, return True (go to next module) or False (fail, go to next event)"""
         
+        # fill histograms
+        event.gweight = 1
+        if self.isMC:
+            event.gweight = event.genWeight / abs(event.genWeight)
+        self.h_nevents.SetBinContent( 1, self.h_nevents.GetBinContent(1) + event.gweight)
+        self.h_genwgt.Fill(0.5, event.genWeight)
+
+        # select leptons and correct jets
         self.selectLeptons(event)
         self.correctJetsAndMET(event)          
         
-        # here we make the jet selection 
+        # basic jet selection 
         probe_jets = [fj for fj in event.fatjets if fj.pt > 200]
         if len(probe_jets) < 2:
             return False
 
-        self.selectLeptons(event)
         self.loadGenHistory(event, probe_jets)
         self.evalMassRegression(event, probe_jets)
 
+        # apply selection
+        passSel = False
+        if self._opts['option'] == 5:
+            if((probe_jets[0].pt > 250) and (probe_jets[1].pt > 250) and (probe_jets[0].msoftdrop>50) and (probe_jets[1].msoftdrop>50) and (probe_jets[0].Xbb>0.8)): passSel = True
+        if not passSel: return False
+
         # fill output branches
         self.fillBaseEventInfo(event)
-        self.fillFatJetInfo(event, probe_jets)          
-        self.fillJetInfo(event, event._allJets)
+        self.fillFatJetInfo(event, probe_jets)
+          
+        # for ak4 jets we only fill the b-tagged medium jets
+        self.fillJetInfo(event, event.bmjets)
         self.fillVBFFatJetInfo(event, event.vbffatjets)
-
+        self.fillVBFJetInfo(event, event.vbfak4jets)
+        self.fillLeptonInfo(event, event.looseLeptons)
+        
         return True
 
 # define modules using the syntax 'name = lambda : constructor' to avoid having them loaded when not needed
