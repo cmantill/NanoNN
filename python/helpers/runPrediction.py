@@ -3,6 +3,7 @@ import numpy as np
 import awkward
 import onnxruntime
 import json
+import pandas as pd
 import traceback
 import logging
 import ROOT as r
@@ -145,11 +146,9 @@ class ParticleNetJetTagsProducer(object):
         return outputs
 
     def load_cache(self, inputFile):
-        
         self.cache_fullpath = inputFile.GetName().replace('.root', '.%s%s.h5' % (self.cache_suffix, self.ver))
         self.cachefile = os.path.basename(self.cache_fullpath)
         try:
-            print('cache full path',self.cache_fullpath)
             copyFileEOS(self.cache_fullpath, self.cachefile)
             self._cache_df = pd.read_hdf(self.cachefile, key=self.md5)
             self._cache_dict = self._cache_df.set_index(['event', 'jetidx']).to_dict(orient='index')
@@ -178,7 +177,6 @@ class ParticleNetJetTagsProducer(object):
                 except Exception:
                     pass
             df = pd.concat(df_list).drop_duplicates(['event', 'jetidx'])
-            print('going to save to ', self.cache_fullpath)
             if 'lpcdihiggsboost' in self.cache_fullpath:
                 try:
                     df.to_hdf(self.cachefile, key=self.md5, complevel=7, complib='blosc')

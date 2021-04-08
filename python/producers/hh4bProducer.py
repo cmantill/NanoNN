@@ -46,7 +46,7 @@ class hh4bProducer(Module):
         self._fj_gen_name = 'GenJetAK8'
         self._sj_gen_name = 'SubGenJetAK8'
         self._opts = {'run_mass_regression': True, 'mass_regression_versions': ['ak8V01a', 'ak8V01b', 'ak8V01c'],
-                      'WRITE_CACHE_FILE': False, 'option': 5}
+                      'WRITE_CACHE_FILE': True, 'option': 5}
         
         # set up mass regression
         if self._opts['run_mass_regression']:
