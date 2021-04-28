@@ -35,6 +35,63 @@ class _NullObject:
 class METObject(Object):
     def p4(self):
         return polarP4(self, eta=None, mass=None)
+
+class triggerEfficiency():
+    def __init__(self, year):
+        self._year = year
+        trigger_files = {'data': {2016: os.path.expandvars('$CMSSW_BASE/src/PhysicsTools/NanoNN/data/trigger/JetHTTriggerEfficiency_2016.root'),
+                                  2017: os.path.expandvars('$CMSSW_BASE/src/PhysicsTools/NanoNN/data/trigger/JetHTTriggerEfficiency_2017.root'),
+                                  2018: os.path.expandvars('$CMSSW_BASE/src/PhysicsTools/NanoNN/data/trigger/JetHTTriggerEfficiency_2018.root')}[self._year],
+                         'mc': {2016: os.path.expandvars('$CMSSW_BASE/src/PhysicsTools/NanoNN/data/trigger/JetHTTriggerEfficiency_Summer2016.root'),
+                                2017: os.path.expandvars('$CMSSW_BASE/src/PhysicsTools/NanoNN/data/trigger/JetHTTriggerEfficiency_Fall17.root'),
+                                2018: os.path.expandvars('$CMSSW_BASE/src/PhysicsTools/NanoNN/data/trigger/JetHTTriggerEfficiency_Fall18.root')}[self._year]
+                     }
+
+        self.triggerHists = {}
+        for key,tfile in trigger_files.items():
+            triggerFile = ROOT.TFile.Open(tfile)
+            self.triggerHists[key]={
+                'all': triggerFile.Get("efficiency_ptmass"),
+                '0.9': triggerFile.Get("efficiency_ptmass_Xbb0p0To0p9"),
+                '0.95': triggerFile.Get("efficiency_ptmass_Xbb0p9To0p95"),
+                '0.98': triggerFile.Get("efficiency_ptmass_Xbb0p95To0p98"),
+                '1.0': triggerFile.Get("efficiency_ptmass_Xbb0p98To1p0")
+            }
+            for key,h in self.triggerHists[key].items():
+                h.SetDirectory(0)
+            triggerFile.Close()
+        
+    def getEfficiency(self, pt, mass, xbb=-1, mcEff=False):
+        triggerHists = self.triggerHists['mc'] if mcEff else self.triggerHists['data']
+        if xbb < 0.9 and xbb>=0:
+            thist = triggerHists['0.9']
+        elif xbb < 0.95 and xbb>=0.9:
+            thist = triggerHists['0.95']
+        elif xbb < 0.98 and xbb>=0.95:
+            thist = triggerHists['0.98']
+        elif xbb <= 1.0 and xbb>=0.98:
+            thist = triggerHists['1.0']
+        else:
+            thist = triggerHists['all']
+
+        # constrain to histogram bounds
+        if mass > thist.GetXaxis().GetXmax() * 0.999: 
+            tmass = thist.GetXaxis().GetXmax() * 0.999
+        elif mass < 0: 
+            tmass = 0.001
+        else: 
+            tmass = mass
+            
+        if pt > thist.GetYaxis().GetXmax() * 0.999:
+            tpt = thist.GetYaxis().GetXmax() * 0.999
+        elif pt < 0:
+            tpt = 0.001
+        else:
+            tpt  = pt
+
+        trigEff = thist.GetBinContent(thist.GetXaxis().FindFixBin(tmass), 
+                                      thist.GetYaxis().FindFixBin(tpt))
+        return trigEff
         
 class hh4bProducer(Module):
     
@@ -100,7 +157,6 @@ class hh4bProducer(Module):
                            2017: [1.026, 1.009, 1.059],
                            2018: [1.031, 1.006, 1.075]}[self.year]
 
-        # jet met corrections
         self._needsJMECorr = any([self._jmeSysts['jec'], 
                                   self._jmeSysts['jes'],
                                   self._jmeSysts['jer'], 
@@ -123,6 +179,9 @@ class hh4bProducer(Module):
         if self._opts['option']==5: print('Select Events with FatJet1 pT > 200 GeV and PNetXbb > 0.8 only')
         elif self._opts['option']==10: print('Select FatJets with pT > 200 GeV and tau3/tau2 < 0.54 only')
         else: print('No selection')
+
+        # trigger Efficiency
+        self._teff = triggerEfficiency(self.year)
 
     def beginJob(self):
         if self._needsJMECorr:
@@ -158,6 +217,10 @@ class hh4bProducer(Module):
         self.out.branch("l1PreFiringWeight", "F")
         self.out.branch("l1PreFiringWeightUp", "F")
         self.out.branch("l1PreFiringWeightDown", "F")
+        self.out.branch("triggerEffWeight", "F")
+        self.out.branch("triggerEff3DWeight", "F")
+        self.out.branch("triggerEffMCWeight", "F")
+        self.out.branch("triggerEffMC3DWeight", "F")
 
         # fatjets
         for idx in ([1, 2]):
@@ -472,7 +535,7 @@ class hh4bProducer(Module):
             else:
                 j.regressed_mass = 0          
 
-    def fillBaseEventInfo(self, event):
+    def fillBaseEventInfo(self, event, fatjets):
         self.out.fillBranch("ht", event.ht)
         self.out.fillBranch("met", event.met.pt)
         self.out.fillBranch("metphi", event.met.phi)
@@ -501,6 +564,16 @@ class hh4bProducer(Module):
             self.out.fillBranch("l1PreFiringWeight", 1.0)
             self.out.fillBranch("l1PreFiringWeightUp", 1.0)
             self.out.fillBranch("l1PreFiringWeightDown", 1.0)
+
+        # trigger weights
+        tweight = 1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS) - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS)
+        tweight_mc = 1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, -1, True) - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, -1, True)
+        tweight_3d = 1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, fatjets[0].Xbb) - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, fatjets[1].Xbb)
+        tweight_3d_mc = .0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, fatjets[0].Xbb, True) - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, fatjets[1].Xbb, True)
+        self.out.fillBranch("triggerEffWeight", tweight)
+        self.out.fillBranch("triggerEff3DWeight", tweight_3d)
+        self.out.fillBranch("triggerEffMCWeight", tweight_mc)
+        self.out.fillBranch("triggerEffMC3DWeight", tweight_3d_mc)
 
     def _get_filler(self, obj):
         def filler(branch, value, default=0):
@@ -572,7 +645,7 @@ class hh4bProducer(Module):
             hasBJetOpp = True if (nb_fj_opp_>0) else False
             fill_fj(prefix + "OppositeHemisphereHasBJet", hasBJetOpp)
             
-            ptovermsd = -1 if fj.msoftdrop<=0 else fj.pt/fj.msoftdrop
+            ptovermsd = -1 if fj.msoftdropJMS<=0 else fj.pt/fj.msoftdropJMS
             fill_fj(prefix + "PtOverMSD", ptovermsd)
 
             # matching variables
@@ -595,7 +668,7 @@ class hh4bProducer(Module):
         self.out.fillBranch("deltaPhi_j1j2", deltaPhi(fatjets[0], fatjets[1]))
         self.out.fillBranch("deltaR_j1j2", deltaR(fatjets[0], fatjets[1]))
         self.out.fillBranch("ptj2_over_ptj1", fatjets[1].pt/fatjets[0].pt)
-        mj2overmj1 = -1 if fatjets[0].msoftdrop<=0 else fatjets[1].msoftdrop/fatjets[0].msoftdrop
+        mj2overmj1 = -1 if fatjets[0].msoftdropJMS<=0 else fatjets[1].msoftdropJMS/fatjets[0].msoftdropJMS
         self.out.fillBranch("mj2_over_mj1", mj2overmj1)
 
     def fillJetInfo(self, event, jets):
@@ -679,7 +752,7 @@ class hh4bProducer(Module):
         if not passSel: return False
 
         # fill output branches
-        self.fillBaseEventInfo(event)
+        self.fillBaseEventInfo(event, probe_jets)
         self.fillFatJetInfo(event, probe_jets)
           
         # for ak4 jets we only fill the b-tagged medium jets
