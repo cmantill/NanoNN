@@ -106,7 +106,7 @@ class hh4bProducer(Module):
         self._jmeSysts = {'jec': False, 'jes': None, 'jes_source': '', 'jes_uncertainty_file_prefix': '',
                           'jer': None, 'met_unclustered': None, 'smearMET': True, 'applyHEMUnc': False}
         self._opts = {'run_mass_regression': True, 'mass_regression_versions': ['ak8V01a', 'ak8V01b', 'ak8V01c'],
-                      'WRITE_CACHE_FILE': False, 'option': 5}
+                      'WRITE_CACHE_FILE': False, 'option': "5"}
         for k in kwargs:
             if k in self._jmeSysts:
                 self._jmeSysts[k] = kwargs[k]
@@ -176,8 +176,8 @@ class hh4bProducer(Module):
         #                    'fj_2_ntracks_sv12', 'fj_2_sj1_sv1_pt', 'fj_2_sj2_sv1_pt']
 
         # selection
-        if self._opts['option']==5: print('Select Events with FatJet1 pT > 200 GeV and PNetXbb > 0.8 only')
-        elif self._opts['option']==10: print('Select FatJets with pT > 200 GeV and tau3/tau2 < 0.54 only')
+        if self._opts['option']=="5": print('Select Events with FatJet1 pT > 200 GeV and PNetXbb > 0.8 only')
+        elif self._opts['option']=="10": print('Select FatJets with pT > 200 GeV and tau3/tau2 < 0.54 only')
         else: print('No selection')
 
         # trigger Efficiency
@@ -556,7 +556,7 @@ class hh4bProducer(Module):
         self.out.fillBranch("passmetfilters", met_filters)
 
         # L1 prefire weights
-        if self.year == 2016 or self.year == 2017:
+        if self.isMC and (self.year == 2016 or self.year == 2017):
             self.out.fillBranch("l1PreFiringWeight", event.L1PreFiringWeight_Nom)
             self.out.fillBranch("l1PreFiringWeightUp", event.L1PreFiringWeight_Up)
             self.out.fillBranch("l1PreFiringWeightDown", event.L1PreFiringWeight_Dn)
@@ -566,10 +566,16 @@ class hh4bProducer(Module):
             self.out.fillBranch("l1PreFiringWeightDown", 1.0)
 
         # trigger weights
-        tweight = 1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS) - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS)
-        tweight_mc = 1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, -1, True) - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, -1, True)
-        tweight_3d = 1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, fatjets[0].Xbb) - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, fatjets[1].Xbb)
-        tweight_3d_mc = .0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, fatjets[0].Xbb, True) - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, fatjets[1].Xbb, True)
+        if self.isMC:
+            tweight = 1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS) - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS)
+            tweight_mc = 1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, -1, True) - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, -1, True)
+            tweight_3d = 1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, fatjets[0].Xbb) - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, fatjets[1].Xbb)
+            tweight_3d_mc = 1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, fatjets[0].Xbb, True) - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, fatjets[1].Xbb, True)
+        else:
+            tweight = 1.0
+            tweight_mc = 1.0
+            tweight_3d = 1.0
+            tweight_3d_mc = 1.0
         self.out.fillBranch("triggerEffWeight", tweight)
         self.out.fillBranch("triggerEff3DWeight", tweight_3d)
         self.out.fillBranch("triggerEffMCWeight", tweight_mc)
@@ -740,14 +746,15 @@ class hh4bProducer(Module):
         if len(probe_jets) < 2:
             return False
 
+        # load gen history and evaluate regression
         self.loadGenHistory(event, probe_jets)
         self.evalMassRegression(event, probe_jets)
 
         # apply selection
         passSel = False
-        if self._opts['option'] == 5:
-            if((probe_jets[0].pt > 250) and (probe_jets[1].pt > 250) and (probe_jets[0].msoftdrop>50) and (probe_jets[1].msoftdrop>50) and (probe_jets[0].Xbb>0.8)): passSel = True
-        elif self._opts['option'] == 10:
+        if self._opts['option'] == "5":
+            if(probe_jets[0].pt > 250 and probe_jets[1].pt > 250 and ((probe_jets[0].msoftdropJMS>50 and probe_jets[1].msoftdropJMS>50) or (probe_jets[0].regressed_mass*self._jmsValuesReg[0]>50 and probe_jets[1].regressed_mass*self._jmsValuesReg[0]>50)) and probe_jets[0].Xbb>0.8): passSel = True
+        elif self._opts['option'] == "10":
             if(((probe_jets[0].pt > 250 and probe_jets[1].pt > 250) or (probe_jets[0].pt > 250 and len(event.looseLeptons)>0)) and probe_jets[0].t32>=0.54): passSel = True
         if not passSel: return False
 
@@ -764,6 +771,9 @@ class hh4bProducer(Module):
         return True
 
 # define modules using the syntax 'name = lambda : constructor' to avoid having them loaded when not needed
-def hh4bProducer_2016(): return hh4bProducer(year=2016)
-def hh4bProducer_2017(): return hh4bProducer(year=2017)
-def hh4bProducer_2018(): return hh4bProducer(year=2018)
+def hh4bProducerFromConfig():
+    import yaml
+    with open('hh4b_cfg.json') as f:
+        cfg = yaml.safe_load(f)
+        year = cfg['year']
+        return hh4bProducer(**cfg)
