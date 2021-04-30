@@ -18,10 +18,12 @@ class InputProducer(Module):
 
      def __init__(self,jetType="AK8"):
           self.nJets = 2
-          self.jet_r = 0.8
+          self.jetType = jetType
+          self.jet_r = 0.8 if jetType=="AK8" else 1.5
           self.jet_r2 = self.jet_r * self.jet_r
           self.jetTag = "" if jetType=="AK8" else jetType
-          self.tagInfoMaker = ParticleNetTagInfoMaker(fatjet_branch='FatJet'+self.jetTag, pfcand_branch='PFCands', sv_branch='SV', fatpfcand_branch='FatJet'+self.jetTag+'PFCands', jetR=self.jet_r)
+          fatpfcand_branch = "FatJetPFCands" if jetType=="AK8" else "JetPFCandsAK15"
+          self.tagInfoMaker = ParticleNetTagInfoMaker(fatjet_branch='FatJet'+self.jetTag, pfcand_branch='PFCands', sv_branch='SV', fatpfcand_branch=fatpfcand_branch, jetR=self.jet_r)
           self.pnTagger = ParticleNetJetTagsProducer(
                os.path.expandvars('$CMSSW_BASE/src/PhysicsTools/NanoNN/data/ParticleNetHWW/input/V01/preprocess.json'),
           )
@@ -203,7 +205,7 @@ class InputProducer(Module):
 
      def analyze(self, event, ievent):
           absolute_event_idx = event._entry if event._tree._entrylist is None else event._tree._entrylist.GetEntry(event._entry)
-          event._allFatJets = Collection(event, "FatJet")
+          event._allFatJets = Collection(event, 'FatJet'+self.jetTag)
           if len(event._allFatJets)>0: 
                self.tagInfo, self.tagInfoLen = self.tagInfoMaker.load(absolute_event_idx, self.tagInfoLen, True)
                if self.tagInfo is None: 
@@ -246,10 +248,16 @@ class InputProducer(Module):
                     self.out.fillBranch("fj_phi", fj.phi)
                     self.out.fillBranch("fj_mass", fj.mass)
                     self.out.fillBranch("fj_msoftdrop", fj.msoftdrop)
-                    self.out.fillBranch("fj_lsf3", fj.lsf3)
-                    self.out.fillBranch("fj_deepTagMD_H4qvsQCD", fj.deepTagMD_H4qvsQCD)
-                    self.out.fillBranch("fj_deepTag_HvsQCD", self.tagInfo["_jet_deepTagHvsQCD"][ieventTag][jidx])
-                    self.out.fillBranch("fj_PN_H4qvsQCD", fj.particleNet_H4qvsQCD)
+                    if self.jetType=="AK8":
+                         self.out.fillBranch("fj_lsf3", fj.lsf3)
+                         self.out.fillBranch("fj_deepTagMD_H4qvsQCD", fj.deepTagMD_H4qvsQCD)
+                         self.out.fillBranch("fj_deepTag_HvsQCD", self.tagInfo["_jet_deepTagHvsQCD"][ieventTag][jidx])
+                         self.out.fillBranch("fj_PN_H4qvsQCD", fj.particleNet_H4qvsQCD)
+                    else:
+                         self.out.fillBranch("fj_lsf3", -1000)
+                         self.out.fillBranch("fj_deepTagMD_H4qvsQCD", -1000)
+                         self.out.fillBranch("fj_deepTag_HvsQCD", -1000)
+                         self.out.fillBranch("fj_PN_H4qvsQCD", fj.ParticleNet_probHqqqq/(fj.ParticleNet_probHqqqq+fj.ParticleNet_probQCDb+fj.ParticleNet_probQCDbb+fj.ParticleNet_probQCDc+fj.ParticleNet_probQCDcc+fj.ParticleNet_probQCDothers))
 
                     isHiggs = self.tagInfo['_isHiggs']
                     isTop = self.tagInfo['_isTop']

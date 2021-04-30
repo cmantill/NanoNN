@@ -27,7 +27,7 @@ class ParticleNetTagInfoMaker(object):
                if self.mask_id is None:
                     return table[arr]
                else:
-                    return table[arr][self.mask_id]
+                    return table[arr]
           elif maskjet:
                return table[arr][self.mask_jet][(self.mask_jet).any()]
           else:
@@ -43,8 +43,12 @@ class ParticleNetTagInfoMaker(object):
                jet_cand_counts = table[self.fatjet_branch + '_nPFCand']
                jet_cand_idxs = table[self.idx_branch]
           else:
+               if 'AK15' in self.fatjet_branch:
+                    jet_cand_idxs = self._get_array(table,self.fatjetpf_branch + '_candIdx', False, True)
+               else:
+                    jet_cand_idxs = self._get_array(table,self.fatjetpf_branch + '_pFCandsIdx', False, True)
+
                cand_parents = self._get_array(table,self.fatjetpf_branch + '_jetIdx', False, True)
-               jet_cand_idxs = self._get_array(table,self.fatjetpf_branch + '_pFCandsIdx', False, True)
 
                c = Counter((cand_parents.offsets[:-1] + cand_parents).content)
                jet_cand_counts = ak.JaggedArray.fromcounts(self.jetp4.counts, [c[k] for k in sorted(c.keys())])
@@ -58,6 +62,7 @@ class ParticleNetTagInfoMaker(object):
                          branch_name = branch_name + '_' + self.fatjet_branch
                     else:
                          branch_name = self.fatjetpf_branch + '_' + var_name
+
                cand_arr = self._get_array(table,branch_name,False,True)
                if self.idx_branch in table: cand_arr = cand_arr[jet_cand_idxs]
                out = jet_cand_counts.copy(
@@ -157,12 +162,13 @@ class ParticleNetTagInfoMaker(object):
           from PhysicsTools.NanoNN.helpers.nnHelper import convert_prob
           data = {}
           deepTag = {}
-          deepTag['probH'] = self._get_array(table, self.fatjet_branch + '_deepTag_H')
-          deepTag['probQCD'] = self._get_array(table, self.fatjet_branch + '_deepTag_QCD')
-          deepTag['probQCDothers'] = self._get_array(table, self.fatjet_branch + '_deepTag_QCDothers')
-          data['_jet_deepTagHvsQCD'] = convert_prob(deepTag, ['H'], prefix='prob', bkgs=['QCD','QCDothers'])
+          if 'AK15' not in self.fatjet_branch:
+               deepTag['probH'] = self._get_array(table, self.fatjet_branch + '_deepTag_H')
+               deepTag['probQCD'] = self._get_array(table, self.fatjet_branch + '_deepTag_QCD')
+               deepTag['probQCDothers'] = self._get_array(table, self.fatjet_branch + '_deepTag_QCDothers')
+               data['_jet_deepTagHvsQCD'] = convert_prob(deepTag, ['H'], prefix='prob', bkgs=['QCD','QCDothers'])
 
-          self._finalize_data(data)
+               self._finalize_data(data)
 
           data['_isHiggs'] = np.any(np.abs(self._get_array(table,'GenPart_pdgId')==25)[0]).astype('int')
           data['_isTop'] = np.any(np.abs(self._get_array(table,'GenPart_pdgId')==6)[0]).astype('int')
@@ -181,6 +187,8 @@ class ParticleNetTagInfoMaker(object):
                self.mask_id = (ak.JaggedArray.fromiter([np.isin(table[self.fatjetpf_branch + '_jetIdx'][index],list(range(0,nj[index]))) for index in range(len(table[self.fatjetpf_branch + '_jetIdx']))]))
                self.is_maskjet = True
                if(not self.mask_jet.any().any()): return None
+
+          if 'AK15' in self.fatjet_branch: self.mask_id = None
           
           self.jetp4 = TLorentzVectorArray.from_ptetaphim(
                self._get_array(table, self.fatjet_branch + '_pt', self.is_maskjet ),
@@ -211,13 +219,21 @@ class ParticleNetTagInfoMaker(object):
           if event_idx >= self._uproot_stop:
                self._uproot_start = event_idx
                self._uproot_stop = self._uproot_start + self._uproot_fetch_step
-               arr_toread = ['FatJet_pt','FatJet_eta', 'FatJet_phi', 'FatJet_mass',
-                             'FatJet_msoftdrop','FatJet_deepTag_H','FatJet_deepTag_QCD','FatJet_deepTag_QCDothers',
+               arr_toread = ['FatJet_pt','FatJet_eta', 'FatJet_phi', 'FatJet_mass','FatJet_msoftdrop',
                              '*FatJetPFCands*', 'PFCands*', 'SV*',
                              'GenPart_*']
                if is_pfarr:
                     arr_toread.append('FatJetTo*_candIdx')
                     arr_toread.append('FatJet_nPFCand')
+               if 'AK15' in self.fatjet_branch:
+                    for i,branch in enumerate(arr_toread):
+                         if 'FatJet_' in branch:
+                              arr_toread[i] = arr_toread[i].replace('FatJet','FatJetAK15')
+                         if branch == "*FatJetPFCands*":
+                              arr_toread[i] = "*JetPFCandsAK15*"
+                    arr_toread += ['FatJetAK15_ParticleNet*']
+               else:
+                    arr_toread += ['FatJet_deepTag_H','FatJet_deepTag_QCD','FatJet_deepTag_QCDothers']
                table = self._uproot_tree.arrays(arr_toread, namedecode='utf-8',
                                                 entrystart=self._uproot_start, entrystop=self._uproot_stop,
                                                 basketcache=self._uproot_basketcache, keycache=self._uproot_keycache,
