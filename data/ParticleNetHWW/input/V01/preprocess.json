@@ -4,7 +4,7 @@
     "sv_features"
   ],
   "pf_features": {
-    "var_length": 50,
+    "var_length": 70,
     "var_names": [
       "pfcand_pt_log_nopuppi",
       "pfcand_e_log_nopuppi",
@@ -28,7 +28,7 @@
     ]
   },
   "sv_features": {
-    "var_length": 5,
+    "var_length": 10,
     "var_names": [
       "sv_pt_log",
       "sv_mass",
