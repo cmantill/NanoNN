@@ -16,12 +16,12 @@ from PhysicsTools.NanoNN.helpers.runPrediction import ParticleNetJetTagsProducer
 
 class InputProducer(Module):
 
-     def __init__(self):
+     def __init__(self,jetType="AK8"):
           self.nJets = 2
           self.jet_r = 0.8
           self.jet_r2 = self.jet_r * self.jet_r
-          self.jetTag = "" #"AK15" # empty if ak8
-          self.tagInfoMaker = ParticleNetTagInfoMaker(fatjet_branch='FatJet'+tag, pfcand_branch='PFCands', sv_branch='SV', fatpfcand_branch='FatJet'+tag+'PFCands', jetR=self.jet_r)
+          self.jetTag = "" if jetType=="AK8" else jetType
+          self.tagInfoMaker = ParticleNetTagInfoMaker(fatjet_branch='FatJet'+self.jetTag, pfcand_branch='PFCands', sv_branch='SV', fatpfcand_branch='FatJet'+self.jetTag+'PFCands', jetR=self.jet_r)
           self.pnTagger = ParticleNetJetTagsProducer(
                os.path.expandvars('$CMSSW_BASE/src/PhysicsTools/NanoNN/data/ParticleNetHWW/input/V01/preprocess.json'),
           )
@@ -278,4 +278,5 @@ class InputProducer(Module):
 
           return True
 
-inputProduder = lambda : InputProducer()
+inputProducer_AK8 = lambda : InputProducer()
+inputProducer_AK15 = lambda : InputProducer("AK15")
