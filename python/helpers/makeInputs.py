@@ -24,10 +24,7 @@ class ParticleNetTagInfoMaker(object):
 
      def _get_array(self, table, arr, maskjet=False, maskpf=False):
           if maskpf:
-               if self.mask_id is None:
-                    return table[arr]
-               else:
-                    return table[arr]
+               return table[arr]
           elif maskjet:
                return table[arr][self.mask_jet][(self.mask_jet).any()]
           else:
@@ -175,18 +172,20 @@ class ParticleNetTagInfoMaker(object):
 
           self.data.update(data)
 
-     def convert(self,table,is_input=False):
+     def convert(self,table,is_input=False,is_masklow=False):
           self.data = {}
           
           self.is_maskjet = False
           self.mask_jet = None
           self.mask_id = None
           if self.idx_branch not in table:
-               self.mask_jet = (table[self.fatjet_branch + '_pt'] > 300.) & (table[self.fatjet_branch + '_msoftdrop'] > 20.)
-               nj = self.mask_jet.astype('int').sum()
-               self.mask_id = (ak.JaggedArray.fromiter([np.isin(table[self.fatjetpf_branch + '_jetIdx'][index],list(range(0,nj[index]))) for index in range(len(table[self.fatjetpf_branch + '_jetIdx']))]))
-               self.is_maskjet = True
-               if(not self.mask_jet.any().any()): return None
+               # for ntuples w. no idx_branch, the PF candidates are only saved for jets w. pT>170 (i.e. for pT==170 we have a problem)
+               if is_masklow:
+                    self.mask_jet = (table[self.fatjet_branch + '_pt'] > 300.) & (table[self.fatjet_branch + '_msoftdrop'] > 20.)
+                    nj = self.mask_jet.astype('int').sum()
+                    self.mask_id = (ak.JaggedArray.fromiter([np.isin(table[self.fatjetpf_branch + '_jetIdx'][index],list(range(0,nj[index]))) for index in range(len(table[self.fatjetpf_branch + '_jetIdx']))]))
+                    self.is_maskjet = True
+                    if(not self.mask_jet.any().any()): return None
 
           if 'AK15' in self.fatjet_branch: self.mask_id = None
           
@@ -201,6 +200,7 @@ class ParticleNetTagInfoMaker(object):
           self._make_pfcands(table)
           self._make_sv(table)
           self.data['_jetp4'] = self.jetp4
+
           if is_input:
                self._make_jet(table)
 
@@ -215,7 +215,7 @@ class ParticleNetTagInfoMaker(object):
           self._uproot_stop = 0
           self._taginfo = None
 
-     def load(self, event_idx, tag_info_len, is_input=False, is_pfarr=False):
+     def load(self, event_idx, tag_info_len, is_input=False, is_pfarr=False, is_masklow=False):
           if event_idx >= self._uproot_stop:
                self._uproot_start = event_idx
                self._uproot_stop = self._uproot_start + self._uproot_fetch_step
@@ -238,7 +238,7 @@ class ParticleNetTagInfoMaker(object):
                                                 entrystart=self._uproot_start, entrystop=self._uproot_stop,
                                                 basketcache=self._uproot_basketcache, keycache=self._uproot_keycache,
                                            )
-               self._taginfo = self.convert(table,is_input)
+               self._taginfo = self.convert(table,is_input,is_masklow)
                tag_info_len += len(self._taginfo['_jetp4'].pt)
 
           return self._taginfo, tag_info_len

@@ -207,7 +207,7 @@ class InputProducer(Module):
           absolute_event_idx = event._entry if event._tree._entrylist is None else event._tree._entrylist.GetEntry(event._entry)
           event._allFatJets = Collection(event, 'FatJet'+self.jetTag)
           if len(event._allFatJets)>0: 
-               self.tagInfo, self.tagInfoLen = self.tagInfoMaker.load(absolute_event_idx, self.tagInfoLen, True)
+               self.tagInfo, self.tagInfoLen = self.tagInfoMaker.load(absolute_event_idx, self.tagInfoLen, is_input=True, is_pfarr=False, is_masklow=True)
                if self.tagInfo is None: 
                     return False
                else: return True
