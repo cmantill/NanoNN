@@ -14,14 +14,14 @@ def find_and_extract_tarball(name, destination, copy_txt_with_prefix=None):
         for f in os.listdir(source_dir):
             if f.startswith(copy_txt_with_prefix) and name in f and f.endswith('.txt'):
                 shutil.copy2(os.path.join(source_dir, f), destination)
-                print('... copied %s to %s' % (os.path.join(source_dir, f), destination))
+                # print('... copied %s to %s' % (os.path.join(source_dir, f), destination))
     for p in search_pathes:
         for ext in ['.tgz', '.tar.gz']:
             fullpath = os.path.join(p, name + ext)
             if os.path.exists(fullpath):
                 with tarfile.open(fullpath, "r:gz") as tar:
                     tar.extractall(destination)
-                print('... extracted %s to %s' % (fullpath, destination))
+                # print('... extracted %s to %s' % (fullpath, destination))
                 return fullpath
 
 
@@ -76,14 +76,14 @@ class jetSmearer(object):
         # load libraries for accessing JER scale factors and uncertainties from txt files
         for library in ["libCondFormatsJetMETObjects", "libPhysicsToolsNanoAODTools"]:
             if library not in ROOT.gSystem.GetLibraries():
-                print("Load Library '%s'" % library.replace("lib", ""))
+                # print("Load Library '%s'" % library.replace("lib", ""))
                 ROOT.gSystem.Load(library)
 
         # initialize JER scale factors and uncertainties
         # (cf. PhysicsTools/PatUtils/interface/SmearedJetProducerT.h )
-        print("Loading jet energy resolutions (JER) from file '%s'" % self.jerInputFile)
+        # print("Loading jet energy resolutions (JER) from file '%s'" % self.jerInputFile)
         self.jer = ROOT.PyJetResolutionWrapper(self.jerInputFile)
-        print("Loading JER scale factors and uncertainties from file '%s'" % self.jerUncertaintyInputFile)
+        # print("Loading JER scale factors and uncertainties from file '%s'" % self.jerUncertaintyInputFile)
         self.jerSF_and_Uncertainty = ROOT.PyJetResolutionScaleFactorWrapper(self.jerUncertaintyInputFile)
 
     def endJob(self):

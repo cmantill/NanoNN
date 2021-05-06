@@ -154,7 +154,7 @@ class JetMETCorrector(object):
         if self.jec or self.jes in ['up', 'down'] or self.correctMET:
             for library in ["libCondFormatsJetMETObjects", "libPhysicsToolsNanoAODTools"]:
                 if library not in ROOT.gSystem.GetLibraries():
-                    logger.info("Load Library '%s'" % library.replace("lib", ""))
+                    # logger.info("Load Library '%s'" % library.replace("lib", ""))
                     ROOT.gSystem.Load(library)
 
             self.jesInputFilePath = tempfile.mkdtemp()
