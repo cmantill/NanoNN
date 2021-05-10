@@ -594,9 +594,10 @@ class hh4bProducer(Module):
                 if self._allJME:
                     for syst in self._jmeLabels:
                         if syst == 'nominal': continue
-                        if event.fatjetsJME[syst][i].pt is not None:
+                        if len(event.fatjetsJME[syst])>i:
                             event.fatjetsJME[syst][i].regressed_mass = j.regressed_mass
                             event.fatjetsJME[syst][i].regressed_massJMS = j.regressed_massJMS
+                            
             else:
                 j.regressed_mass = 0          
                 j.regressed_massJMS = 0
@@ -633,10 +634,10 @@ class hh4bProducer(Module):
 
         # trigger weights
         if self.isMC:
-            tweight = 1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS) - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS)
-            tweight_mc = 1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, -1, True) - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, -1, True)
-            tweight_3d = 1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, fatjets[0].Xbb) - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, fatjets[1].Xbb)
-            tweight_3d_mc = 1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, fatjets[0].Xbb, True) - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, fatjets[1].Xbb, True)
+            tweight = 1.0 - (1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS))*(1.0 - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS))
+            tweight_mc = 1.0 - (1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, -1, True))*(1.0 - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, -1, True))
+            tweight_3d = 1.0 - (1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, fatjets[0].Xbb))*(1.0 - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, fatjets[1].Xbb))
+            tweight_3d_mc = 1.0 - (1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, fatjets[0].Xbb, True))*(1.0 - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, fatjets[1].Xbb, True))
         else:
             tweight = 1.0
             tweight_mc = 1.0
