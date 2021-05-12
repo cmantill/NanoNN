@@ -204,10 +204,10 @@ class InputProducer(Module):
                fj.genHWW_Wstar, fj.dr_HWW_Wstar, tmpidx = closest(fj, wwgenHsWstar)
 
      def analyze(self, event, ievent):
-          absolute_event_idx = event._entry if event._tree._entrylist is None else event._tree._entrylist.GetEntry(event._entry)
+          event.idx = event._entry if event._tree._entrylist is None else event._tree._entrylist.GetEntry(event._entry)
           event._allFatJets = Collection(event, 'FatJet'+self.jetTag)
           if len(event._allFatJets)>0: 
-               self.tagInfo, self.tagInfoLen = self.tagInfoMaker.load(absolute_event_idx, self.tagInfoLen, is_input=True, is_pfarr=False, is_masklow=True)
+               self.tagInfo = self.tagInfoMaker.load(event.idx, is_input=True, is_pfarr=False, is_masklow=True)
                if self.tagInfo is None: 
                     return False
                else: return True
@@ -215,22 +215,14 @@ class InputProducer(Module):
                return False
 
      def fill(self, event, ievent):
-          absolute_event_idx = event._entry if event._tree._entrylist is None else event._tree._entrylist.GetEntry(event._entry)
-          skip = -1
-          if(absolute_event_idx<self.fetch_step):
-               ieventTag = ievent
-          else:
-               ieventTag = ievent - self.tagInfoLen
-          # print('iev ',ievent, ' taginfo ',self.tagInfoLen, ' abs ',absolute_event_idx)
-          # print('evt tag ',ieventTag)
 
           self.loadGenHistory(event,event._allFatJets)
 
           nevt = 0
+          skip = -1
           for idx, fj in enumerate(event._allFatJets):
-               #print('fj pt bef ',fj.pt, 'msof ',fj.msoftdrop)
                if idx>1 : continue
-               if (fj.pt <= 300 or fj.msoftdrop <= 20):
+               if (fj.pt <= 170):
                     skip = idx;
                     continue
                else:
@@ -238,10 +230,14 @@ class InputProducer(Module):
                     else: jidx = skip
                fj.idx = jidx
                fj = event._allFatJets[idx]
-               # print('fj pt ',fj.pt, self.tagInfo['_jetp4'].pt[ieventTag])
+               # print these lines for debug
+               # print('event ',event.idx,' ievent ',ievent)
+               # print('fj pt ',fj.pt, self.tagInfo['_jetp4'].pt[event.idx-self.tagInfo._uproot_start])
+               # here we use the event idx to create the taginfo table
+               # the ievent index should correspond to the event idx in case there is no previous skimming (which we should avoid here)
 
-               outputs = self.pnTagger.pad_one(self.tagInfo, ieventTag, jidx)
-               if outputs:
+               outputs = self.pnTagger.pad_one(self.tagInfo, event.idx-self.tagInfoMaker._uproot_start, jidx)
+               if outputs and fj.pt>=300 and fj.msoftdrop>=20:
                     self.out.fillBranch("fj_idx", fj.idx)
                     self.out.fillBranch("fj_pt", fj.pt)
                     self.out.fillBranch("fj_eta", fj.eta)
@@ -251,7 +247,7 @@ class InputProducer(Module):
                     if self.jetType=="AK8":
                          self.out.fillBranch("fj_lsf3", fj.lsf3)
                          self.out.fillBranch("fj_deepTagMD_H4qvsQCD", fj.deepTagMD_H4qvsQCD)
-                         self.out.fillBranch("fj_deepTag_HvsQCD", self.tagInfo["_jet_deepTagHvsQCD"][ieventTag][jidx])
+                         self.out.fillBranch("fj_deepTag_HvsQCD", self.tagInfo["_jet_deepTagHvsQCD"][event.idx-self.tagInfoMaker._uproot_start][jidx])
                          self.out.fillBranch("fj_PN_H4qvsQCD", fj.particleNet_H4qvsQCD)
                     else:
                          self.out.fillBranch("fj_lsf3", -1000)
@@ -263,15 +259,18 @@ class InputProducer(Module):
                     isTop = self.tagInfo['_isTop']
                     if(isHiggs==0 and isTop==0): isQCD = 1
                     else: isQCD = 0
+                    if(isHiggs==1 and isTop==1): isTop = 0
                     self.out.fillBranch("fj_isQCD", isQCD)
                     self.out.fillBranch("fj_isTop", isTop)
 
-                    self.out.fillBranch("fj_H_WW_4q", 1 if fj.dr_HWW_qqqq < self.jet_r else 0)
-                    self.out.fillBranch("fj_H_WW_elenuqq", 1 if fj.dr_HWW_elenuqq < self.jet_r else 0)
-                    self.out.fillBranch("fj_H_WW_munuqq", 1 if fj.dr_HWW_munuqq < self.jet_r else 0)
-                    self.out.fillBranch("fj_H_WW_taunuqq", 1 if fj.dr_HWW_taunuqq < self.jet_r else 0)
-                    self.out.fillBranch("fj_dR_W", fj.dr_HWW_W if fj.dr_HWW_W else 99)
-                    self.out.fillBranch("fj_dR_Wstar", fj.dr_HWW_Wstar if fj.dr_HWW_Wstar else 99)
+                    dr_HWW_W = fj.dr_HWW_W if fj.dr_HWW_W else 99
+                    dR_HWW_Wstar = fj.dr_HWW_Wstar if fj.dr_HWW_Wstar else 99
+                    self.out.fillBranch("fj_H_WW_4q", 1 if (fj.dr_HWW_qqqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
+                    self.out.fillBranch("fj_H_WW_elenuqq", 1 if (fj.dr_HWW_elenuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
+                    self.out.fillBranch("fj_H_WW_munuqq", 1 if (fj.dr_HWW_munuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
+                    self.out.fillBranch("fj_H_WW_taunuqq", 1 if (fj.dr_HWW_taunuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
+                    self.out.fillBranch("fj_dR_W", dr_HWW_W)
+                    self.out.fillBranch("fj_dR_Wstar", dR_HWW_Wstar)
                     self.out.fillBranch("fj_dR_HWW_daus", max([deltaR(fj, dau) for dau in fj.genHww.daus]) if fj.genHww else 99)
                     self.out.fillBranch("fj_dR_Hbb_daus", max([deltaR(fj, dau) for dau in fj.genHbb.daus]) if fj.genHbb else 99)
                     # add whether W or W star are hadronic
