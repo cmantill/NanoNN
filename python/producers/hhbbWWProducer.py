@@ -65,7 +65,7 @@ class hhbbWWProducer(Module):
             }
             
         # selection
-        if self._opts['option']=="1": print('Select Events with FatJet1 pT > 250 GeV and msofdrop > 20 GeV')
+        if self._opts['option']=="1": print('Select Events with FatJet1 pT > 250 GeV and msoftdrop > 20 GeV')
         else: print('No selection')
 
     def beginJob(self):
@@ -83,10 +83,8 @@ class hhbbWWProducer(Module):
             for key,item in self.pnTaggers.items():
                 for p in item:
                     p.load_cache(inputFile)
-            # because the input files now have no pfcands at exactly pT=170 is better to keep the fetch step to 1 and just load for the entries we want to predict (which will be jets > 250 GeV)
-            # alternatively we can apply a mask to the inputs (e.g. pT>170) but then we lose track of the event idx...
-            self.tagInfoMakers['AK8'].init_file(inputFile, fetch_step=1)
-            self.tagInfoMakers['AK15'].init_file(inputFile, fetch_step=1)
+            self.tagInfoMakers['AK8'].init_file(inputFile, fetch_step=1000)
+            self.tagInfoMakers['AK15'].init_file(inputFile, fetch_step=1000)
 
         self.out = wrappedOutputTree
 
@@ -172,8 +170,8 @@ class hhbbWWProducer(Module):
 
     def evalTagger(self, event, jets, jetType="AK8"):
         for i, j in enumerate(jets):
-            if self._opts['run_tagger']:
-                outputs = [p.predict_with_cache(self.tagInfoMakers[jetType], event.idx, j.idx, j,False) for p in self.pnTaggers[jetType]]
+            if self._opts['run_tagger'] and j.pt >= 171:
+                outputs = [p.predict_with_cache(self.tagInfoMakers[jetType], event.idx, j.idx, j, False, is_masklow=True) for p in self.pnTaggers[jetType]]
                 outputs = ensemble(outputs, np.mean)
                 j.pn_4q = outputs['fj_H_WW_4q']
                 j.pn_elenuqq = outputs['fj_H_WW_elenuqq']
@@ -282,6 +280,7 @@ class hhbbWWProducer(Module):
         if passSelAK8: 
             self.evalTagger(event, probe_jets)
             self.fillFatJetInfo(event, probe_jets)
+
         if passSelAK15:
             self.evalTagger(event, probe_jets_ak15, "AK15")
             self.fillFatJetInfo(event, probe_jets_ak15, "AK15")
