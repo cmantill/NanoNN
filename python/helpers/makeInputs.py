@@ -9,29 +9,28 @@ from collections import Counter
 import itertools 
 
 class ParticleNetTagInfoMaker(object):
-     def __init__(self, fatjet_branch='FatJet', pfcand_branch='PFCands', sv_branch='SV', fatpfcand_branch=None, jetR=0.8, pfcand_ptcut=0):
+     def __init__(self, fatjet_branch='FatJet', pfcand_branch='PFCands', sv_branch='SV', fatpfcand_branch=None, jetR=0.8):
           self.fatjet_branch = fatjet_branch
           self.pfcand_branch = pfcand_branch
           self.fatjetpf_branch = fatpfcand_branch
           self.sv_branch = sv_branch
           self.jet_r2 = jetR * jetR
           self.idx_branch = '{jet}To{cand}_candIdx'.format(jet=fatjet_branch, cand=pfcand_branch)
-          self.pfcand_ptcut = pfcand_ptcut
-        
+          if fatpfcand_branch:
+               if 'AK15' in self.fatjet_branch:
+                    self.idx_branch_pfnano = self.fatjetpf_branch + '_candIdx'
+               else:
+                    self.idx_branch_pfnano = self.fatjetpf_branch + '_pFCandsIdx'
+
      def _finalize_data(self, data):
           for k in data:
                data[k] = data[k].astype('float32')
 
-     def _get_array(self, table, arr, maskjet=False, maskpf=False):
-          if maskpf:
-               return table[arr]
-          elif maskjet:
-               return table[arr][self.mask_jet][(self.mask_jet).any()]
+     def _get_array(self, table, arr, maskjet=False):
+          if maskjet:
+               return table[arr][self.mask_jet]
           else:
-               if self.mask_jet is None:
-                    return table[arr]
-               else:
-                    return table[arr][(self.mask_jet).any()]
+               return table[arr]
 
      def _make_pfcands(self,table):
           data = {}
@@ -40,17 +39,14 @@ class ParticleNetTagInfoMaker(object):
                jet_cand_counts = table[self.fatjet_branch + '_nPFCand']
                jet_cand_idxs = table[self.idx_branch]
           else:
-               if 'AK15' in self.fatjet_branch:
-                    jet_cand_idxs = self._get_array(table,self.fatjetpf_branch + '_candIdx', False, True)
-               else:
-                    jet_cand_idxs = self._get_array(table,self.fatjetpf_branch + '_pFCandsIdx', False, True)
-
-               cand_parents = self._get_array(table,self.fatjetpf_branch + '_jetIdx', False, True)
-
+               # this is a way for us to the number of pf cands
+               cand_parents = self._get_array(table,self.fatjetpf_branch + '_jetIdx')
                c = Counter((cand_parents.offsets[:-1] + cand_parents).content)
-               jet_cand_counts = ak.JaggedArray.fromcounts(self.jetp4.counts, [c[k] for k in sorted(c.keys())])
 
-          ptcut = None
+               # here jetp4 must already be masked for jets w. pT>170 GeV
+               jet_cand_counts = ak.JaggedArray.fromcounts(self.jetp4.counts, [c[k] for k in sorted(c.keys())])
+               # and this is how we get the jet cand idxs
+               jet_cand_idxs = self._get_array(table, self.idx_branch_pfnano)
 
           def pf(var_name):
                branch_name = self.pfcand_branch + '_' + var_name
@@ -59,18 +55,17 @@ class ParticleNetTagInfoMaker(object):
                          branch_name = branch_name + '_' + self.fatjet_branch
                     else:
                          branch_name = self.fatjetpf_branch + '_' + var_name
+               cand_arr = self._get_array(table,branch_name)
 
-               cand_arr = self._get_array(table,branch_name,False,True)
-               if self.idx_branch in table: cand_arr = cand_arr[jet_cand_idxs]
-               out = jet_cand_counts.copy(
-                    content=ak.JaggedArray.fromcounts(jet_cand_counts.content, cand_arr.content))
-               if ptcut is None:
-                    return out
+               # for old ntuples, we need to mask cand idx always
+               if self.idx_branch in table:
+                    cand_arr = cand_arr[jet_cand_idxs]
                else:
-                    return out[ptcut]
-
-          if self.pfcand_ptcut > 0:
-               ptcut = pf('pt') > self.pfcand_ptcut
+                    # for new ntuples we only need to mask them when they belong to the PF branches
+                    if var_name[:4] != 'btag':
+                         cand_arr = cand_arr[jet_cand_idxs]
+               out = jet_cand_counts.copy(content=ak.JaggedArray.fromcounts(jet_cand_counts.content, cand_arr.content))
+               return out
 
           data['pfcand_VTX_ass'] = pf('pvAssocQuality')
           data['pfcand_lostInnerHits'] = pf('lostInnerHits')
@@ -110,7 +105,7 @@ class ParticleNetTagInfoMaker(object):
           data['pfcand_btagSip3dVal'] = pf('btagSip3dVal')
           data['pfcand_btagSip3dSig'] = pf('btagSip3dSig')
           data['pfcand_btagJetDistVal'] = pf('btagJetDistVal')
-          
+    
           self._finalize_data(data)
           self.data.update(data)
 
@@ -175,32 +170,28 @@ class ParticleNetTagInfoMaker(object):
      def convert(self,table,is_input=False,is_masklow=False):
           self.data = {}
           
+          # for ntuples w. no idx_branch, the PF candidates are only saved for jets w. pT>170 (i.e. for pT==170 we have a problem)
           self.is_maskjet = False
           self.mask_jet = None
-          self.mask_id = None
-          if self.idx_branch not in table:
-               # for ntuples w. no idx_branch, the PF candidates are only saved for jets w. pT>170 (i.e. for pT==170 we have a problem)
-               if is_masklow:
-                    self.mask_jet = (table[self.fatjet_branch + '_pt'] > 300.) & (table[self.fatjet_branch + '_msoftdrop'] > 20.)
-                    nj = self.mask_jet.astype('int').sum()
-                    self.mask_id = (ak.JaggedArray.fromiter([np.isin(table[self.fatjetpf_branch + '_jetIdx'][index],list(range(0,nj[index]))) for index in range(len(table[self.fatjetpf_branch + '_jetIdx']))]))
-                    self.is_maskjet = True
-                    if(not self.mask_jet.any().any()): return None
+          if self.idx_branch not in table and is_masklow:
+               self.is_maskjet = True
+               self.mask_jet = (table[self.fatjet_branch + '_pt'] > 171)
+               # print('mask jet ',self.mask_jet)
 
-          if 'AK15' in self.fatjet_branch: self.mask_id = None
-          
           self.jetp4 = TLorentzVectorArray.from_ptetaphim(
                self._get_array(table, self.fatjet_branch + '_pt', self.is_maskjet ),
                self._get_array(table,self.fatjet_branch + '_eta', self.is_maskjet ),
                self._get_array(table,self.fatjet_branch + '_phi', self.is_maskjet ),
                self._get_array(table,self.fatjet_branch + '_mass', self.is_maskjet ),
           )
+          # print('jp4 ',self._get_array(table, self.fatjet_branch + '_pt'),self._get_array(table, self.fatjet_branch + '_pt', self.is_maskjet ))
+
           self.eta_sign = self.jetp4.eta.ones_like()
           self.eta_sign[self.jetp4.eta <= 0] = -1
+
           self._make_pfcands(table)
           self._make_sv(table)
           self.data['_jetp4'] = self.jetp4
-
           if is_input:
                self._make_jet(table)
 
@@ -210,15 +201,18 @@ class ParticleNetTagInfoMaker(object):
           self._uproot_basketcache = uproot.cache.ThreadSafeArrayCache('200MB')
           self._uproot_keycache = uproot.cache.ThreadSafeArrayCache('10MB')
           self._uproot_tree = uproot.open(inputFile.GetName())['Events']
+          #self._uproot_tree = uproot.open(inputFile)['Events']
           self._uproot_fetch_step = fetch_step
           self._uproot_start = 0
           self._uproot_stop = 0
           self._taginfo = None
 
-     def load(self, event_idx, tag_info_len, is_input=False, is_pfarr=False, is_masklow=False):
+     def load(self, event_idx, is_input=False, is_pfarr=False, is_masklow=False):
           if event_idx >= self._uproot_stop:
                self._uproot_start = event_idx
                self._uproot_stop = self._uproot_start + self._uproot_fetch_step
+               
+               # build arrays to read
                arr_toread = ['FatJet_pt','FatJet_eta', 'FatJet_phi', 'FatJet_mass','FatJet_msoftdrop',
                              '*FatJetPFCands*', 'PFCands*', 'SV*',
                              'GenPart_*']
@@ -234,24 +228,34 @@ class ParticleNetTagInfoMaker(object):
                     arr_toread += ['FatJetAK15_ParticleNet*']
                else:
                     arr_toread += ['FatJet_deepTag_H','FatJet_deepTag_QCD','FatJet_deepTag_QCDothers']
+
+               # read table
                table = self._uproot_tree.arrays(arr_toread, namedecode='utf-8',
                                                 entrystart=self._uproot_start, entrystop=self._uproot_stop,
                                                 basketcache=self._uproot_basketcache, keycache=self._uproot_keycache,
                                            )
                self._taginfo = self.convert(table,is_input,is_masklow)
-               tag_info_len += len(self._taginfo['_jetp4'].pt)
 
-          return self._taginfo, tag_info_len
+          return self._taginfo
 
 if __name__ == '__main__':
-     import uproot
      import argparse
      parser = argparse.ArgumentParser('TEST')
      parser.add_argument('-i', '--input')
      args = parser.parse_args()
      
-     p = ParticleNetTagInfoMaker(pfcand_ptcut=0)
-     table = uproot.open(args.input)['Events'].arrays(['FatJet*', 'PFCands*', 'SV*'], namedecode='utf-8', entrystart=0, entrystop=2)
-     taginfo = p.convert(table)
+     p = ParticleNetTagInfoMaker()
+     fatpfcand_branch = "FatJetPFCands"
+     #fatpfcand_branch = "JetPFCandsAK15"
+     p = ParticleNetTagInfoMaker(fatjet_branch='FatJet', pfcand_branch='PFCands', sv_branch='SV', fatpfcand_branch=fatpfcand_branch, jetR=0.8)
+     #p = ParticleNetTagInfoMaker(fatjet_branch='FatJetAK15', pfcand_branch='PFCands', sv_branch='SV', fatpfcand_branch=fatpfcand_branch, jetR=1.5)
+     #table = uproot.open(args.input)['Events'].arrays(['FatJet*', 'PFCands*', 'SV*'], namedecode='utf-8', entrystart=3529, entrystop=3531)
+     #p.init_file(args.input,1000)
+     table = uproot.open(args.input)['Events'].arrays(['FatJet*', 'PFCands*', 'SV*', 'AK15*', 'Jet*AK15*'], namedecode='utf-8', entrystart=3001, entrystop=3983)
+     #taginfo_producer.load(event_idx,False,is_pfarr,is_masklow)
+     #taginfo = p.load(0,False,False,True)
+
+     taginfo = p.convert(table,False,True)
+     # print(taginfo)
      for k in taginfo:
           print(k, taginfo[k])
