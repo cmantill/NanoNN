@@ -140,6 +140,7 @@ class ParticleNetJetTagsProducer(object):
         preds = self.sess.run([], data)[0]
         outputs = {flav:preds[0, i] for i, flav in enumerate(self.prep_params['output_names'])}
         if self.debug:
+            print('entry idx ',entry_idx,' ',jet_idx)
             p4 = taginfo['_jetp4'][entry_idx][jet_idx]
             print('pt,eta,phi', (jet.pt, jet.eta, jet.phi), (p4.pt, p4.eta, p4.phi))
             print('outputs', outputs)
@@ -187,13 +188,12 @@ class ParticleNetJetTagsProducer(object):
             if os.path.exists(self.cachefile):
                 os.remove(self.cachefile)
 
-    def predict_with_cache(self, taginfo_producer, event_idx, jet_idx, jet=None, is_pfarr=True):
+    def predict_with_cache(self, taginfo_producer, event_idx, jet_idx, jet=None, is_pfarr=True, is_masklow=False):
         outputs = None
         if self._cache_df is not None:
             outputs = self._cache_dict.get((event_idx, jet_idx))
         if outputs is None:
-            taginfolen = 0
-            taginfo,taginfolen = taginfo_producer.load(event_idx,taginfolen,False,is_pfarr,False)
+            taginfo = taginfo_producer.load(event_idx,False,is_pfarr,is_masklow)
             outputs = self.predict_one(taginfo, int(event_idx - taginfo_producer._uproot_start), jet_idx, jet=jet)
             self._cache_list.append({'event': event_idx, 'jetidx': jet_idx, **outputs})
         return outputs
