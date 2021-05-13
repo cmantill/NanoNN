@@ -227,18 +227,20 @@ class hhbbWWProducer(Module):
           
             # matching variables
             if self.isMC:
+                dr_HWW_W = fj.dr_HWW_W if fj.dr_HWW_W else 99
+                dR_HWW_Wstar = fj.dr_HWW_Wstar if fj.dr_HWW_Wstar else 99
                 if fj:
-                    fill_fj(prefix + "H_WW_4q", 1 if fj.dr_HWW_qqqq < coneSize else 0)
-                    fill_fj(prefix + "H_WW_elenuqq", 1 if fj.dr_HWW_elenuqq < coneSize else 0)
-                    fill_fj(prefix + "H_WW_munuqq", 1 if fj.dr_HWW_munuqq < coneSize else 0)
-                    fill_fj(prefix + "H_WW_taunuqq", 1 if fj.dr_HWW_taunuqq < coneSize else 0)
+                    fill_fj(prefix + "H_WW_4q", 1 if (fj.dr_HWW_qqqq < coneSize and dr_HWW_W < coneSize and dR_HWW_Wstar < coneSize) else 0)
+                    fill_fj(prefix + "H_WW_elenuqq", 1 if (fj.dr_HWW_elenuqq < coneSize and dr_HWW_W < coneSize and dR_HWW_Wstar < coneSize) else 0)
+                    fill_fj(prefix + "H_WW_munuqq", 1 if (fj.dr_HWW_munuqq < coneSize and dr_HWW_W < coneSize and dR_HWW_Wstar < coneSize) else 0)
+                    fill_fj(prefix + "H_WW_taunuqq", 1 if (fj.dr_HWW_taunuqq < coneSize and dr_HWW_W < coneSize and dR_HWW_Wstar < coneSize) else 0)
                 else:
                     fill_fj(prefix + "H_WW_4q", 0)
                     fill_fj(prefix + "H_WW_elenuqq", 0)
                     fill_fj(prefix + "H_WW_munuqq", 0)
                     fill_fj(prefix + "H_WW_taunuqq", 0)
-                fill_fj(prefix + "dR_W", fj.dr_HWW_W if fj.dr_HWW_W else 99)
-                fill_fj(prefix + "dR_Wstar", fj.dr_HWW_Wstar if fj.dr_HWW_Wstar else 99)
+                fill_fj(prefix + "dR_W", dr_HWW_W)
+                fill_fj(prefix + "dR_Wstar", dR_HWW_Wstar)
                 fill_fj(prefix + "dR_HWW_daus", max([deltaR(fj, dau) for dau in fj.genHww.daus]) if fj.genHww else 99)
                 fill_fj(prefix + "dR_Hbb_daus", max([deltaR(fj, dau) for dau in fj.genHbb.daus]) if fj.genHbb else 99)
 

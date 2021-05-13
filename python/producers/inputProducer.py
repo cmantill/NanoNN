@@ -192,11 +192,20 @@ class InputProducer(Module):
                fj.genHWW_elenuqq, fj.dr_HWW_elenuqq, tmpidx = closest(fj, WWGenHs['elenuqq']['H'])
                fj.genHWW_taunuqq, fj.dr_HWW_taunuqq, tmpidx = closest(fj, WWGenHs['taunuqq']['H'])
 
+               mindR = 99
                key=None
-               if len(WWGenHs['qqqq']['W']) > 0: key='qqqq'
-               elif len(WWGenHs['munuqq']['W']) > 0: key='munuqq'
-               elif len(WWGenHs['elenuqq']['W']) > 0: key='elenuqq'
-               elif len(WWGenHs['taunuqq']['W']) > 0: key='taunuqq'
+               if len(WWGenHs['qqqq']['W']) > 0 and fj.dr_HWW_qqqq < mindR:
+                    key='qqqq'
+                    mindR = fj.dr_HWW_qqqq 
+               if len(WWGenHs['munuqq']['W']) > 0 and fj.dr_HWW_munuqq < mindR: 
+                    key='munuqq'
+                    mindR = fj.dr_HWW_munuqq
+               if len(WWGenHs['elenuqq']['W']) > 0 and fj.dr_HWW_elenuqq < mindR:
+                    key='elenuqq'
+                    mindR = fj.dr_HWW_elenuqq
+               if len(WWGenHs['taunuqq']['W']) > 0 and fj.dr_HWW_taunuqq < mindR: 
+                    key='taunuqq'
+                    mindR = fj.dr_HWW_taunuqq
                
                wwgenHsW = WWGenHs[key]['W'] if key else []
                wwgenHsWstar = WWGenHs[key]['Wstar'] if key else []
@@ -222,7 +231,7 @@ class InputProducer(Module):
           skip = -1
           for idx, fj in enumerate(event._allFatJets):
                if idx>1 : continue
-               if (fj.pt <= 170):
+               if (fj.pt <= 171):
                     skip = idx;
                     continue
                else:
@@ -231,11 +240,12 @@ class InputProducer(Module):
                fj.idx = jidx
                fj = event._allFatJets[idx]
                # print these lines for debug
-               # print('event ',event.idx,' ievent ',ievent)
-               # print('fj pt ',fj.pt, self.tagInfo['_jetp4'].pt[event.idx-self.tagInfo._uproot_start])
+               #print('event ',event.idx,' ievent ',ievent)
+               #print('fj pt ',fj.pt, self.tagInfo['_jetp4'].pt[event.idx-self.tagInfoMaker._uproot_start])
                # here we use the event idx to create the taginfo table
                # the ievent index should correspond to the event idx in case there is no previous skimming (which we should avoid here)
 
+               #print(event.idx-self.tagInfoMaker._uproot_start, jidx, len(self.tagInfo))
                outputs = self.pnTagger.pad_one(self.tagInfo, event.idx-self.tagInfoMaker._uproot_start, jidx)
                if outputs and fj.pt>=300 and fj.msoftdrop>=20:
                     self.out.fillBranch("fj_idx", fj.idx)
