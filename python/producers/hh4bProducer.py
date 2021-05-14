@@ -288,6 +288,11 @@ class hh4bProducer(Module):
                 self.out.branch(prefix + "MassRegressed_JMR_Down", "F")
                 self.out.branch(prefix + "MassRegressed_JMR_Up", "F")
 
+                self.out.branch(prefix + "PtOverMHH_JMS_Down", "F")
+                self.out.branch(prefix + "PtOverMHH_JMS_Up", "F")
+                self.out.branch(prefix + "PtOverMHH_JMR_Down", "F")
+                self.out.branch(prefix + "PtOverMHH_JMR_Up", "F")
+
                 if self._allJME:
                     for syst in self._jmeLabels:
                         if syst == 'nominal': continue
@@ -299,6 +304,21 @@ class hh4bProducer(Module):
         self.out.branch("hh_eta", "F")
         self.out.branch("hh_phi", "F")
         self.out.branch("hh_mass", "F")
+
+        if self.isMC:
+            self.out.branch("hh_pt_JMS_Down", "F")
+            self.out.branch("hh_pt_JMS_Up", "F")
+            self.out.branch("hh_eta_JMS_Down", "F")
+            self.out.branch("hh_eta_JMS_Up", "F")
+            self.out.branch("hh_mass_JMS_Down", "F")
+            self.out.branch("hh_mass_JMS_Up", "F")
+
+            self.out.branch("hh_pt_JMR_Down", "F")
+            self.out.branch("hh_pt_JMR_Up", "F")
+            self.out.branch("hh_eta_JMR_Down", "F")
+            self.out.branch("hh_eta_JMR_Up", "F")
+            self.out.branch("hh_mass_JMR_Down", "F")
+            self.out.branch("hh_mass_JMR_Up", "F")
 
         if self.isMC and self._allJME:
             for syst in self._jmeLabels:
@@ -534,10 +554,23 @@ class hh4bProducer(Module):
             fj.subjets = get_subjets(fj, event.subjets, ('subJetIdx1', 'subJetIdx2'))
             fj.Xbb = (fj.ParticleNetMD_probXbb/(1. - fj.ParticleNetMD_probXcc - fj.ParticleNetMD_probXqq))
             fj.t32 = (fj.tau3/fj.tau2) if fj.tau2 > 0 else -1
-            fj.msoftdropJMS = fj.msoftdrop*self._jmsValues[0]
+            if self.isMC:
+                fj.msoftdropJMS = fj.msoftdrop*self._jmsValues[0]
+            else:
+                fj.msoftdropJMS = fj.msoftdrop
             # do we need to recompute the softdrop mass?
             # fj.msoftdrop = sumP4(*fj.subjets).M()
             
+            corr_mass_JMRUp = random.gauss(0.0, self._jmrValues[2] - 1.)
+            corr_mass = max(self._jmrValues[0]-1.,0.)/(self._jmrValues[2]-1.) * corr_mass_JMRUp
+            corr_mass_JMRDown = max(self._jmrValues[1]-1.,0.)/(self._jmrValues[2]-1.) * corr_mass_JMRUp
+            fj.msoftdrop_corr = fj.msoftdropJMS*(1.+corr_mass)
+            fj.msoftdrop_JMS_Down = fj.msoftdrop_corr*(self._jmsValues[1]/self._jmsValues[0])
+            fj.msoftdrop_JMS_Up = fj.msoftdrop_corr*(self._jmsValues[2]/self._jmsValues[0])
+            fj.msoftdrop_JMR_Down = fj.msoftdropJMS*(1.+corr_mass_JMRDown)
+            fj.msoftdrop_JMR_Up = fj.msoftdropJMS*(1.+corr_mass_JMRUp)
+
+
         # sort fat jets
         event._ptFatJets = sorted(event._allFatJets, key=lambda x: x.pt, reverse=True)  # sort by pt
         event._xbbFatJets = sorted(event._allFatJets, key=lambda x: x.Xbb, reverse = True) # sort by PnXbb score  
@@ -590,7 +623,20 @@ class hh4bProducer(Module):
             if self._opts['run_mass_regression']:
                 outputs = [p.predict_with_cache(self.tagInfoMaker, event.idx, j.idx, j) for p in self.pnMassRegressions]
                 j.regressed_mass = ensemble(outputs, np.median)['mass']
-                j.regressed_massJMS = j.regressed_mass*self._jmsValuesReg[0]
+                if self.isMC:
+                    j.regressed_massJMS = j.regressed_mass*self._jmsValuesReg[0]
+                else:
+                    j.regressed_massJMS = j.regressed_mass
+
+                corr_mass_JMRUp = random.gauss(0.0, self._jmrValuesReg[2] - 1.)
+                corr_mass = max(self._jmrValuesReg[0]-1.,0.)/(self._jmrValuesReg[2]-1.) * corr_mass_JMRUp
+                corr_mass_JMRDown = max(self._jmrValuesReg[1]-1.,0.)/(self._jmrValuesReg[2]-1.) * corr_mass_JMRUp
+                j.regressed_mass_corr = j.regressed_massJMS*(1.+corr_mass)
+                j.regressed_mass_JMS_Down = j.regressed_mass_corr*(self._jmsValuesReg[1]/self._jmsValuesReg[0])
+                j.regressed_mass_JMS_Up = j.regressed_mass_corr*(self._jmsValuesReg[2]/self._jmsValuesReg[0])
+                j.regressed_mass_JMR_Down = j.regressed_massJMS*(1.+corr_mass_JMRDown)
+                j.regressed_mass_JMR_Up = j.regressed_massJMS*(1.+corr_mass_JMRUp)
+
                 if self._allJME:
                     for syst in self._jmeLabels:
                         if syst == 'nominal': continue
@@ -668,6 +714,31 @@ class hh4bProducer(Module):
         mj2overmj1 = -1 if fatjets[0].regressed_massJMS<=0 else fatjets[1].regressed_massJMS/fatjets[0].regressed_massJMS
         self.out.fillBranch("mj2_over_mj1", mj2overmj1)
 
+        if self.isMC:
+            h1Jet_JMS_Down = polarP4(fatjets[0],mass='regressed_mass_JMS_Down')
+            h2Jet_JMS_Down = polarP4(fatjets[1],mass='regressed_mass_JMS_Down')
+            h1Jet_JMS_Up = polarP4(fatjets[0],mass='regressed_mass_JMS_Up')
+            h2Jet_JMS_Up = polarP4(fatjets[1],mass='regressed_mass_JMS_Up')
+
+            h1Jet_JMR_Down = polarP4(fatjets[0],mass='regressed_mass_JMR_Down')
+            h2Jet_JMR_Down = polarP4(fatjets[1],mass='regressed_mass_JMR_Down')
+            h1Jet_JMR_Up = polarP4(fatjets[0],mass='regressed_mass_JMR_Up')
+            h2Jet_JMR_Up = polarP4(fatjets[1],mass='regressed_mass_JMR_Up')
+
+            self.out.fillBranch("hh_pt_JMS_Down", (h1Jet_JMS_Down+h2Jet_JMS_Down).Pt())
+            self.out.fillBranch("hh_eta_JMS_Down", (h1Jet_JMS_Down+h2Jet_JMS_Down).Eta())
+            self.out.fillBranch("hh_mass_JMS_Down", (h1Jet_JMS_Down+h2Jet_JMS_Down).M())
+            self.out.fillBranch("hh_pt_JMS_Up", (h1Jet_JMS_Up+h2Jet_JMS_Up).Pt())
+            self.out.fillBranch("hh_eta_JMS_Up", (h1Jet_JMS_Up+h2Jet_JMS_Up).Eta())
+            self.out.fillBranch("hh_mass_JMS_Up", (h1Jet_JMS_Up+h2Jet_JMS_Up).M())
+
+            self.out.fillBranch("hh_pt_JMR_Down", (h1Jet_JMR_Down+h2Jet_JMR_Down).Pt())
+            self.out.fillBranch("hh_eta_JMR_Down", (h1Jet_JMR_Down+h2Jet_JMR_Down).Eta())
+            self.out.fillBranch("hh_mass_JMR_Down", (h1Jet_JMR_Down+h2Jet_JMR_Down).M())
+            self.out.fillBranch("hh_pt_JMR_Up", (h1Jet_JMR_Up+h2Jet_JMR_Up).Pt())
+            self.out.fillBranch("hh_eta_JMR_Up", (h1Jet_JMR_Up+h2Jet_JMR_Up).Eta())
+            self.out.fillBranch("hh_mass_JMR_Up", (h1Jet_JMR_Up+h2Jet_JMR_Up).M())
+
         for idx in ([1, 2]):
             prefix = 'fatJet%i' % idx
             fj = fatjets[idx - 1]
@@ -688,25 +759,17 @@ class hh4bProducer(Module):
             
             # uncertainties
             if self.isMC:
-                corr_mass_JMRUp = random.gauss(0.0, self._jmrValues[2] - 1.)
-                corr_mass = max(self._jmrValues[0]-1.,0.)/(self._jmrValues[2]-1.) * corr_mass_JMRUp
-                corr_mass_JMRDown = max(self._jmrValues[1]-1.,0.)/(self._jmrValues[2]-1.) * corr_mass_JMRUp
-                fj_msoftdrop_corr = fj.msoftdropJMS*(1.+corr_mass)
-                fill_fj(prefix + "MassSD", fj_msoftdrop_corr)
-                fill_fj(prefix + "MassSD_JMS_Down", fj_msoftdrop_corr*(self._jmsValues[1]/self._jmsValues[0]))
-                fill_fj(prefix + "MassSD_JMS_Up",  fj_msoftdrop_corr*(self._jmsValues[2]/self._jmsValues[0]))
-                fill_fj(prefix + "MassSD_JMR_Down", fj.msoftdropJMS*(1.+corr_mass_JMRDown))
-                fill_fj(prefix + "MassSD_JMR_Up", fj.msoftdropJMS*(1.+corr_mass_JMRUp))
+                fill_fj(prefix + "MassSD", fj.msoftdrop_corr)
+                fill_fj(prefix + "MassSD_JMS_Down", fj.msoftdrop_JMS_Down)
+                fill_fj(prefix + "MassSD_JMS_Up",  fj.msoftdrop_JMS_Up)
+                fill_fj(prefix + "MassSD_JMR_Down", fj.msoftdrop_JMR_Down)
+                fill_fj(prefix + "MassSD_JMR_Up",  fj.msoftdrop_JMR_Up)
 
-                corr_mass_JMRUp = random.gauss(0.0, self._jmrValuesReg[2] - 1.)
-                corr_mass = max(self._jmrValuesReg[0]-1.,0.)/(self._jmrValuesReg[2]-1.) * corr_mass_JMRUp
-                corr_mass_JMRDown = max(self._jmrValuesReg[1]-1.,0.)/(self._jmrValuesReg[2]-1.) * corr_mass_JMRUp
-                fj_mregressed_corr = fj.regressed_massJMS*(1.+corr_mass)
-                fill_fj(prefix + "MassRegressed", fj_mregressed_corr)
-                fill_fj(prefix + "MassRegressed_JMS_Down", fj_mregressed_corr*(self._jmsValuesReg[1]/self._jmsValuesReg[0]))
-                fill_fj(prefix + "MassRegressed_JMS_Up",  fj_mregressed_corr*(self._jmsValuesReg[2]/self._jmsValuesReg[0]))
-                fill_fj(prefix + "MassRegressed_JMR_Down", fj.regressed_massJMS*(1.+corr_mass_JMRDown))
-                fill_fj(prefix + "MassRegressed_JMR_Up", fj.regressed_massJMS*(1.+corr_mass_JMRUp))
+                fill_fj(prefix + "MassRegressed", fj.regressed_mass_corr)
+                fill_fj(prefix + "MassRegressed_JMS_Down", fj.regressed_mass_JMS_Down)
+                fill_fj(prefix + "MassRegressed_JMS_Up",   fj.regressed_mass_JMS_Up)
+                fill_fj(prefix + "MassRegressed_JMR_Down", fj.regressed_mass_JMR_Down)
+                fill_fj(prefix + "MassRegressed_JMR_Up", fj.regressed_mass_JMR_Up)
             else:
                 fill_fj(prefix + "MassSD", fj.msoftdropJMS)
                 fill_fj(prefix + "MassRegressed", fj.regressed_massJMS)
@@ -734,12 +797,16 @@ class hh4bProducer(Module):
 
             # hh variables
             ptovermsd = -1 if fj.msoftdropJMS<=0 else fj.pt/fj.msoftdropJMS
-            fill_fj(prefix + "PtOverMSD", ptovermsd)
-
             ptovermregressed = -1 if fj.regressed_massJMS<=0 else fj.pt/fj.regressed_massJMS
+            fill_fj(prefix + "PtOverMSD", ptovermsd)
             fill_fj(prefix + "PtOverMRegressed", ptovermregressed)
-
             fill_fj(prefix + "PtOverMHH", fj.pt/(h1Jet+h2Jet).M())
+
+            if self.isMC:
+                fill_fj(prefix + "PtOverMHH_JMS_Down", fj.pt/(h1Jet_JMS_Down+h2Jet_JMS_Down).M())
+                fill_fj(prefix + "PtOverMHH_JMS_Up", fj.pt/(h1Jet_JMS_Up+h2Jet_JMS_Up).M())
+                fill_fj(prefix + "PtOverMHH_JMR_Down", fj.pt/(h1Jet_JMR_Down+h2Jet_JMR_Down).M())
+                fill_fj(prefix + "PtOverMHH_JMR_Up", fj.pt/(h1Jet_JMR_Up+h2Jet_JMR_Up).M())
 
             # matching variables
             if self.isMC:
