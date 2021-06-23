@@ -25,7 +25,7 @@ class InputProducer(Module):
           fatpfcand_branch = "FatJetPFCands" if jetType=="AK8" else "JetPFCandsAK15"
           self.tagInfoMaker = ParticleNetTagInfoMaker(fatjet_branch='FatJet'+self.jetTag, pfcand_branch='PFCands', sv_branch='SV', fatpfcand_branch=fatpfcand_branch, jetR=self.jet_r)
           self.pnTagger = ParticleNetJetTagsProducer(
-               os.path.expandvars('$CMSSW_BASE/src/PhysicsTools/NanoNN/data/ParticleNetHWW/input/V01/preprocess.json'),
+               os.path.expandvars('$CMSSW_BASE/src/PhysicsTools/NanoNN/data/ParticleNetHWW/input/V03/preprocess.json'),
           )
           self.n_pf = self.pnTagger.prep_params['pf_features']['var_length']
           self.pf_names = self.pnTagger.prep_params['pf_features']['var_names']
@@ -49,17 +49,35 @@ class InputProducer(Module):
           self.out.branch("fj_deepTagMD_H4qvsQCD", "F", 1)
           self.out.branch("fj_deepTag_HvsQCD", "F", 1)
           self.out.branch("fj_PN_H4qvsQCD", "F", 1)
+          self.out.branch("fj_PN_XbbvsQCD", "F", 1)
 
           self.out.branch("fj_isQCD", "I", 1)
           self.out.branch("fj_isTop", "I", 1)
+          self.out.branch("fj_H_bb", "I", 1)
+          self.out.branch("fj_H_cc", "I", 1)
+          self.out.branch("fj_H_qq", "I", 1)
           self.out.branch("fj_H_WW_4q", "I", 1) 
           self.out.branch("fj_H_WW_elenuqq", "I", 1)
           self.out.branch("fj_H_WW_munuqq", "I", 1)
           self.out.branch("fj_H_WW_taunuqq", "I", 1)
+          self.out.branch("fj_genH_mass", "F", 1)
+          self.out.branch("fj_genH_pt", "F", 1)
           self.out.branch("fj_dR_W", "F", 1)
+          self.out.branch("fj_genW_pt", "F", 1)
+          self.out.branch("fj_genW_eta", "F", 1)
+          self.out.branch("fj_genW_phi", "F", 1)
+          self.out.branch("fj_genW_mass", "F", 1)
           self.out.branch("fj_dR_Wstar", "F", 1)
-          self.out.branch("fj_dR_HWW_daus", "F", 1)
-          self.out.branch("fj_dR_Hbb_daus", "F", 1)
+          self.out.branch("fj_genWstar_pt", "F", 1)
+          self.out.branch("fj_genWstar_eta", "F", 1)
+          self.out.branch("fj_genWstar_phi", "F", 1)
+          self.out.branch("fj_genWstar_mass", "F", 1)
+          self.out.branch("fj_mindR_HWW_daus", "F", 1)
+          self.out.branch("fj_maxdR_HWW_daus", "F", 1)
+          self.out.branch("fj_maxdR_Hbb_daus", "F", 1)
+          self.out.branch("fj_genW_decay", "F", 1)
+          self.out.branch("fj_genWstar_decay", "F", 1)
+          self.out.branch("fj_nProngs", "I", 1)
 
           for key in self.pf_names:
                self.out.branch(key, "F", self.n_pf)
@@ -114,6 +132,8 @@ class InputProducer(Module):
           hadGenWs = []
           hadGenZs = []
           bbGenHs = []
+          ccGenHs = []
+          qqGenHs = []
           wwGenHs = []
           WWGenHs = {'munuqq': {'H': [],'W': [], 'Wstar':[]},
                      'elenuqq': {'H': [],'W': [], 'Wstar':[]},
@@ -144,10 +164,13 @@ class InputProducer(Module):
                     if isHadronic(gp):
                          hadGenZs.append(gp)
                elif abs(gp.pdgId) == 25:
-                    if isHadronic(gp):
+                    if isDecay(gp,5):
                          bbGenHs.append(gp)
+                    if isDecay(gp,4):
+                         ccGenHs.append(gp)
+                    if isDecay(gp,3) or isDecay(gp,2) or isDecay(gp,1):
+                         qqGenHs.append(gp)
                     elif isDecay(gp,24):
-                         wwGenHs.append(gp)
                          ws = []
                          for idx in gp.dauIdx:
                               dau = genparts[idx]
@@ -169,6 +192,7 @@ class InputProducer(Module):
                               elif ((isHadronic(gp.genW) and isDecay(gp.genWstar,15)) or (isHadronic(gp.genWstar) and isDecay(gp.genW,15))): key = "taunuqq"
 
                               if key:
+                                   wwGenHs.append(gp)
                                    WWGenHs[key]['H'].append(gp)
                                    WWGenHs[key]['W'].append(gp.genW)
                                    WWGenHs[key]['Wstar'].append(gp.genWstar)
@@ -176,15 +200,20 @@ class InputProducer(Module):
           for parton in itertools.chain(lepGenTops, hadGenTops):
                parton.daus = (parton.genB, genparts[parton.genW.dauIdx[0]], genparts[parton.genW.dauIdx[1]])
                parton.genW.daus = parton.daus[1:]
-          for parton in itertools.chain(hadGenWs, hadGenZs, bbGenHs, wwGenHs):
+          for parton in itertools.chain(hadGenWs, hadGenZs, bbGenHs, ccGenHs, qqGenHs):
                parton.daus = (genparts[parton.dauIdx[0]], genparts[parton.dauIdx[1]])
-               
+          for parton in itertools.chain(wwGenHs):               
+               parton.daus = (genparts[parton.genW.dauIdx[0]], genparts[parton.genW.dauIdx[1]], 
+                              genparts[parton.genWstar.dauIdx[0]], genparts[parton.genWstar.dauIdx[1]])
+
           for fj in fatjets:
                fj.genZ, fj.dr_Z, fj.genZidx = closest(fj, hadGenZs)
                fj.genW, fj.dr_W, fj.genWidx = closest(fj, hadGenWs)
                fj.genT, fj.dr_T, fj.genTidx = closest(fj, hadGenTops)
                fj.genLepT, fj.dr_LepT, fj.genLepTidx = closest(fj, lepGenTops)
                fj.genHbb, fj.dr_Hbb, fj.genHbbidx = closest(fj, bbGenHs)
+               fj.genHcc, fj.dr_Hcc, fj.genHccidx = closest(fj, ccGenHs)
+               fj.genHqq, fj.dr_Hqq, fj.genHqqidx = closest(fj, qqGenHs)
                fj.genHww, fj.dr_Hww, fj.genHwwidx = closest(fj, wwGenHs)
                
                fj.genHWW_qqqq, fj.dr_HWW_qqqq, tmpidx = closest(fj, WWGenHs['qqqq']['H'])
@@ -211,6 +240,23 @@ class InputProducer(Module):
                wwgenHsWstar = WWGenHs[key]['Wstar'] if key else []
                fj.genHWW_W, fj.dr_HWW_W, tmpidx = closest(fj, wwgenHsW)
                fj.genHWW_Wstar, fj.dr_HWW_Wstar, tmpidx = closest(fj, wwgenHsWstar)
+               if fj.genHWW_W:
+                    fj.genHWW_Wdecay = 1 if isHadronic(fj.genHWW_W) else 0
+                    fj.genHWW_Wstardecay = 1 if isHadronic(fj.genHWW_Wstar) else 0
+               else:
+                    fj.genHWW_Wdecay = 0
+                    fj.genHWW_Wstardecay = 0
+
+               # count the number of prongs
+               nProngs = 0
+               daus = []
+               if fj.genHbb and fj.dr_Hbb<self.jet_r: daus = fj.genHbb.daus
+               elif fj.genHcc and fj.dr_Hcc<self.jet_r: daus = fj.genHcc.daus
+               elif fj.genHqq and fj.dr_Hqq<self.jet_r: daus = fj.genHqq.daus
+               elif fj.genHww and fj.dr_Hww<self.jet_r: daus = fj.genHww.daus
+               for dau in daus: 
+                    if deltaR(fj, dau)< self.jet_r: nProngs +=1
+               fj.nProngs = nProngs
 
      def analyze(self, event, ievent):
           event.idx = event._entry if event._tree._entrylist is None else event._tree._entrylist.GetEntry(event._entry)
@@ -230,7 +276,7 @@ class InputProducer(Module):
           nevt = 0
           skip = -1
           for idx, fj in enumerate(event._allFatJets):
-               if idx>1 : continue
+               # if idx>1 : continue
                if (fj.pt <= 171):
                     skip = idx;
                     continue
@@ -246,6 +292,16 @@ class InputProducer(Module):
                # the ievent index should correspond to the event idx in case there is no previous skimming (which we should avoid here)
 
                #print(event.idx-self.tagInfoMaker._uproot_start, jidx, len(self.tagInfo))
+
+               isHiggs = self.tagInfo['_isHiggs']
+               isTop = self.tagInfo['_isTop']
+               if(isHiggs==0 and isTop==0): isQCD = 1
+               else: isQCD = 0
+               if(isHiggs==1 and isTop==1): isTop = 0
+
+               if idx>1 and (isQCD==1 or isTop==1): continue
+               if idx>2 and isQCD==0 and isTop==0: continue
+
                outputs = self.pnTagger.pad_one(self.tagInfo, event.idx-self.tagInfoMaker._uproot_start, jidx)
                if outputs and fj.pt>=300 and fj.msoftdrop>=20:
                     self.out.fillBranch("fj_idx", fj.idx)
@@ -259,11 +315,19 @@ class InputProducer(Module):
                          self.out.fillBranch("fj_deepTagMD_H4qvsQCD", fj.deepTagMD_H4qvsQCD)
                          self.out.fillBranch("fj_deepTag_HvsQCD", self.tagInfo["_jet_deepTagHvsQCD"][event.idx-self.tagInfoMaker._uproot_start][jidx])
                          self.out.fillBranch("fj_PN_H4qvsQCD", fj.particleNet_H4qvsQCD)
+                         fj_pn_xbb = 0
+                         if (1.0 - fj.particleNetMD_Xcc - fj.particleNetMD_Xqq)>0:
+                              fj_pn_xbb = fj.particleNetMD_Xbb/(1.0 - fj.particleNetMD_Xcc - fj.particleNetMD_Xqq)
+                         self.out.fillBranch("fj_PN_XbbvsQCD", fj_pn_xbb)
                     else:
                          self.out.fillBranch("fj_lsf3", -1000)
                          self.out.fillBranch("fj_deepTagMD_H4qvsQCD", -1000)
                          self.out.fillBranch("fj_deepTag_HvsQCD", -1000)
                          self.out.fillBranch("fj_PN_H4qvsQCD", fj.ParticleNet_probHqqqq/(fj.ParticleNet_probHqqqq+fj.ParticleNet_probQCDb+fj.ParticleNet_probQCDbb+fj.ParticleNet_probQCDc+fj.ParticleNet_probQCDcc+fj.ParticleNet_probQCDothers))
+                         fj_pn_xbb = 0
+                         if (1.0 - fj.ParticleNetMD_probXcc - fj.ParticleNetMD_probXqq)>0:
+                              fj_pn_xbb = fj.ParticleNetMD_probXbb/(1.0 - fj.ParticleNetMD_probXcc - fj.ParticleNetMD_probXqq)
+                         self.out.fillBranch("fj_PN_XbbvsQCD", fj_pn_xbb)
 
                     isHiggs = self.tagInfo['_isHiggs']
                     isTop = self.tagInfo['_isTop']
@@ -273,17 +337,58 @@ class InputProducer(Module):
                     self.out.fillBranch("fj_isQCD", isQCD)
                     self.out.fillBranch("fj_isTop", isTop)
 
+                    ## other labels
+                    self.out.fillBranch("fj_H_bb", 1 if (fj.dr_Hbb < self.jet_r and max([deltaR(fj, dau) for dau in fj.genHbb.daus])<1.0) else 0)
+                    self.out.fillBranch("fj_H_cc", 1 if (fj.dr_Hcc < self.jet_r and max([deltaR(fj, dau) for dau in fj.genHcc.daus])<1.0) else 0)
+                    self.out.fillBranch("fj_H_qq", 1 if (fj.dr_Hqq < self.jet_r and max([deltaR(fj, dau) for dau in fj.genHqq.daus])<1.0) else 0)
+                    self.out.fillBranch("fj_maxdR_Hbb_daus", max([deltaR(fj, dau) for dau in fj.genHbb.daus]) if fj.genHbb else 99)
+
+                    ## WW 
                     dr_HWW_W = fj.dr_HWW_W if fj.dr_HWW_W else 99
                     dR_HWW_Wstar = fj.dr_HWW_Wstar if fj.dr_HWW_Wstar else 99
                     self.out.fillBranch("fj_H_WW_4q", 1 if (fj.dr_HWW_qqqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
                     self.out.fillBranch("fj_H_WW_elenuqq", 1 if (fj.dr_HWW_elenuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
                     self.out.fillBranch("fj_H_WW_munuqq", 1 if (fj.dr_HWW_munuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
                     self.out.fillBranch("fj_H_WW_taunuqq", 1 if (fj.dr_HWW_taunuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
+
+                    genH_mass = -99
+                    genH_pt = -99
+                    if fj.genHww: 
+                         genH_mass = fj.genHww.mass
+                         genH_pt = fj.genHww.pt
+                    elif fj.genHbb:
+                         genH_mass = fj.genHbb.mass
+                         genH_pt = fj.genHbb.pt
+                    elif fj.genHcc:
+                         genH_mass = fj.genHcc.mass
+                         genH_pt = fj.genHcc.pt
+                    elif fj.genHqq:
+                         genH_mass = fj.genHqq.mass
+                         genH_pt = fj.genHqq.pt
+                    self.out.fillBranch("fj_genH_mass", genH_mass)
+                    self.out.fillBranch("fj_genH_pt", genH_pt)
+
+                    # dR of W, Wstar, and daus
                     self.out.fillBranch("fj_dR_W", dr_HWW_W)
+                    self.out.fillBranch("fj_genW_pt", fj.genHWW_W.pt if fj.genHWW_W else -99)
+                    self.out.fillBranch("fj_genW_eta", fj.genHWW_W.eta if fj.genHWW_W else -99)
+                    self.out.fillBranch("fj_genW_phi", fj.genHWW_W.phi if fj.genHWW_W else -99)
+                    self.out.fillBranch("fj_genW_mass", fj.genHWW_W.mass if fj.genHWW_W else -99)
                     self.out.fillBranch("fj_dR_Wstar", dR_HWW_Wstar)
-                    self.out.fillBranch("fj_dR_HWW_daus", max([deltaR(fj, dau) for dau in fj.genHww.daus]) if fj.genHww else 99)
-                    self.out.fillBranch("fj_dR_Hbb_daus", max([deltaR(fj, dau) for dau in fj.genHbb.daus]) if fj.genHbb else 99)
+                    self.out.fillBranch("fj_genWstar_pt", fj.genHWW_Wstar.pt if fj.genHWW_Wstar else -99)
+                    self.out.fillBranch("fj_genWstar_eta", fj.genHWW_Wstar.eta if fj.genHWW_Wstar else -99)
+                    self.out.fillBranch("fj_genWstar_phi", fj.genHWW_Wstar.phi if fj.genHWW_Wstar else -99)
+                    self.out.fillBranch("fj_genWstar_mass", fj.genHWW_Wstar.mass if fj.genHWW_Wstar else -99)
+                    # add distance to WW daughters
+                    ptt = fj.genHWW_W.pt if fj.genHWW_W else -99
+                    mm = fj.genHww.mass if fj.genHww else -99
+                    self.out.fillBranch("fj_maxdR_HWW_daus", max([deltaR(fj, dau) for dau in fj.genHww.daus]) if(fj.genHww and fj.dr_Hww < self.jet_r) else 99)
+                    self.out.fillBranch("fj_mindR_HWW_daus", min([deltaR(fj, dau) for dau in fj.genHww.daus]) if(fj.genHww and fj.dr_Hww < self.jet_r) else 99)
+
                     # add whether W or W star are hadronic
+                    self.out.fillBranch("fj_genW_decay", fj.genHWW_Wdecay if fj.genHWW_W else -99)
+                    self.out.fillBranch("fj_genWstar_decay", fj.genHWW_Wstardecay if fj.genHWW_Wstar else -99)
+                    self.out.fillBranch("fj_nProngs", fj.nProngs)
 
                     for key in self.pf_names:
                          self.out.fillBranch(key, outputs['pf_features'][key])
