@@ -9,7 +9,7 @@ from collections import Counter
 import itertools 
 
 class ParticleNetTagInfoMaker(object):
-     def __init__(self, fatjet_branch='FatJet', pfcand_branch='PFCands', sv_branch='SV', fatpfcand_branch=None, jetR=0.8):
+     def __init__(self, fatjet_branch='FatJet', pfcand_branch='PFCands', sv_branch='SV', fatpfcand_branch=None, jetR=0.8, extras=False):
           self.fatjet_branch = fatjet_branch
           self.pfcand_branch = pfcand_branch
           self.fatjetpf_branch = fatpfcand_branch
@@ -21,6 +21,7 @@ class ParticleNetTagInfoMaker(object):
                     self.idx_branch_pfnano = self.fatjetpf_branch + '_candIdx'
                else:
                     self.idx_branch_pfnano = self.fatjetpf_branch + '_pFCandsIdx'
+          self.extras = extras
 
      def _finalize_data(self, data):
           for k in data:
@@ -92,10 +93,12 @@ class ParticleNetTagInfoMaker(object):
           data['pfcand_phirel'] = candp4.delta_phi(self.jetp4)
           data['pfcand_etarel'] = self.eta_sign * (candp4.eta - self.jetp4.eta)
           data['pfcand_abseta'] = np.abs(candp4.eta)
-          
+
           data['pfcand_pt_log_nopuppi'] = np.log(candp4.pt)
           data['pfcand_e_log_nopuppi'] = np.log(candp4.energy)
-          
+          data['pfcand_pt'] = candp4.pt
+          data['pfcand_e'] = candp4.energy
+
           chi2 = pf('trkChi2')
           chi2.content[chi2.content == -1] = 999
           data['pfcand_normchi2'] = np.floor(chi2)
@@ -105,6 +108,13 @@ class ParticleNetTagInfoMaker(object):
           data['pfcand_btagSip3dVal'] = pf('btagSip3dVal')
           data['pfcand_btagSip3dSig'] = pf('btagSip3dSig')
           data['pfcand_btagJetDistVal'] = pf('btagJetDistVal')
+
+          if self.extras:
+               data['pfcand_pt_over_jetpt'] = candp4.pt / self.jetp4.pt
+               data['pfcand_etarel_nosign'] = (candp4.eta - self.jetp4.eta)
+               data['pfcand_pup'] = candp4.puppiWeight
+               data['pfcand_pupnolep'] = candp4.puppiWeightNoLep
+               data['pfcand_pdgId'] = pdgId
     
           self._finalize_data(data)
           self.data.update(data)
@@ -139,8 +149,16 @@ class ParticleNetTagInfoMaker(object):
           data['sv_dxysig'] = sv('dxySig')
           data['sv_d3d'] = sv('dlen')
           data['sv_d3dsig'] = sv('dlenSig')
-          data['sv_costhetasvpv'] = -np.cos(sv('pAngle'))
-          
+          svpAngle = sv('pAngle')
+          data['sv_costhetasvpv'] = -np.cos(svpAngle)
+
+          if self.extras:          
+               data['sv_pangle'] = svpAngle
+               data['sv_x'] = sv('x')
+               data['sv_y'] = sv('y')
+               data['sv_z'] = sv('z')
+               data['sv_eta'] = (svp4.eta - self.jetp4.eta)
+
           dxysig = sv('dxySig')
           dxysig.content[~np.isfinite(dxysig.content)] = 0
           pos = dxysig.argsort()
@@ -176,7 +194,6 @@ class ParticleNetTagInfoMaker(object):
           if self.idx_branch not in table and is_masklow:
                self.is_maskjet = True
                self.mask_jet = (table[self.fatjet_branch + '_pt'] > 171)
-               # print('mask jet ',self.mask_jet)
 
           self.jetp4 = TLorentzVectorArray.from_ptetaphim(
                self._get_array(table, self.fatjet_branch + '_pt', self.is_maskjet ),
@@ -184,7 +201,6 @@ class ParticleNetTagInfoMaker(object):
                self._get_array(table,self.fatjet_branch + '_phi', self.is_maskjet ),
                self._get_array(table,self.fatjet_branch + '_mass', self.is_maskjet ),
           )
-          # print('jp4 ',self._get_array(table, self.fatjet_branch + '_pt'),self._get_array(table, self.fatjet_branch + '_pt', self.is_maskjet ))
 
           self.eta_sign = self.jetp4.eta.ones_like()
           self.eta_sign[self.jetp4.eta <= 0] = -1
