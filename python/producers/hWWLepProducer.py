@@ -221,9 +221,9 @@ class hWWLepProducer(Module):
                         if nEle==1 and nMu==0: key = "elenuhad"
                         if nMu==1 and nEle==0: key = "munuhad"
                         if nEle==0 and nMu==0: key = "hadhad"
-                        
+                        ttGenHs.append(gp)
+   
                         if key:
-                            ttGenHs.append(gp)
                             TTGenHs[key]['H'].append(gp)
                             TTGenHs[key]['tau0'].append(tauvs[0])
                             TTGenHs[key]['tau1'].append(tauvs[1])
