@@ -1,0 +1,143 @@
+{
+  "output_names": [
+    "probVsWTop"
+  ],
+  "input_names": [
+    "pf_features",
+    "sv_features"
+  ],
+  "pf_features": {
+    "input_shape": [
+      1,
+      10,
+      20
+    ],
+    "var_infos": {
+      "pfcand_pt_over_jetpt": {
+	  "median": 0.0,
+	  "norm_factor": 1.0
+      },
+      "pfcand_phirel": {
+        "median": 0.0,
+        "norm_factor": 1.0
+      },
+      "pfcand_etarel_nosign": {
+          "median": 0.0,
+          "norm_factor": 1.0
+      },
+      "pfcand_pup": {
+	  "median": 0.0,
+          "norm_factor": 1.0
+      },
+      "pfcand_pupnolep": { 
+          "median": 0.0,
+          "norm_factor": 1.0
+      },
+      "pfcand_charge": {
+        "median": 0.0,
+        "norm_factor": 1.0
+      },
+      "pfcand_dxy": {
+        "median": 0.0,
+        "norm_factor": 1.0
+      },
+      "pfcand_dxysig": {
+        "median": 0.0,
+        "norm_factor": 1.0
+      },
+      "pfcand_dz": {
+        "median": 0.0,
+        "norm_factor": 1.0
+      },
+      "pfcand_pdgId": {
+        "median": 0.0,
+        "norm_factor": 1.0
+      }
+    },
+    "var_length": 30,
+    "var_names": [
+      "pfcand_pt_over_jetpt",
+      "pfcand_etarel_nosign",
+      "pfcand_phirel",
+      "pfcand_charge",
+      "pfcand_dz",
+      "pfcand_dxy",
+      "pfcand_dxysig",
+      "pfcand_pup",
+      "pfcand_pupnolep",
+      "pfcand_pdgId"
+    ]
+  },
+  "sv_features": {
+    "input_shape": [
+      1,
+      13,
+      5
+    ],
+    "var_infos": {
+      "sv_d3d": {
+        "median": 0.0,
+        "norm_factor": 1.0
+      },
+      "sv_d3dsig": {
+        "median": 0.0,
+        "norm_factor": 1.0
+      },
+      "sv_dxy": {
+        "median": 0.0,
+        "norm_factor": 1.0
+      },
+      "sv_dxysig": {
+        "median": 0.0,
+        "norm_factor": 1.0
+      },
+      "sv_normchi2": {
+        "median": 0.0,
+        "norm_factor": 1.0
+      },
+      "sv_pangle": {
+        "median": 0.0,
+        "norm_factor": 1.0
+      },
+      "sv_x": {
+        "median": 0.0,
+        "norm_factor": 1.0
+      },
+      "sv_y": {
+        "median": 0.0,
+        "norm_factor": 1.0
+      },
+      "sv_z": {
+        "median": 0.0,
+        "norm_factor": 1.0
+      },
+      "sv_eta": {
+        "median": 0.0,
+        "norm_factor": 1.0
+      },
+      "sv_phirel": {
+        "median": 0.0,
+        "norm_factor": 1.0
+      },
+      "sv_mass": {
+        "median": 0.0,
+        "norm_factor": 1.0
+      }
+    },
+    "var_length": 5,
+    "var_names": [
+      "sv_d3d",
+      "sv_d3dsig",
+      "sv_dxy",
+      "sv_dxysig",
+      "sv_normchi2",
+      "sv_pangle",
+      "sv_x",
+      "sv_y",
+      "sv_z",
+      "sv_eta",
+      "sv_phirel",
+      "sv_mass"
+    ]
+  }
+}
