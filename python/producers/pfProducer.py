@@ -20,13 +20,16 @@ class pfProducer(Module):
           self.nJets = 2
           self.tagInfoMaker = ParticleNetTagInfoMaker(fatjet_branch='FatJet', pfcand_branch='PFCands', sv_branch='SV', fatpfcand_branch='FatJetPFCands', jetR=0.8)
           self.pnTagger = ParticleNetJetTagsProducer(
-               os.path.expandvars('$CMSSW_BASE/src/PhysicsTools/NanoNN/data/ParticleNetHWW/input/V01/preprocess.json'),
+               os.path.expandvars('$CMSSW_BASE/src/PhysicsTools/NanoNN/data/ParticleNetHWW/input/pf/preprocess.json'),
           )
           self.n_pf = 70
           self.pf_names = ["pfcand_pt_log_nopuppi",
                            "pfcand_e_log_nopuppi",
                            "pfcand_etarel",
-                           "pfcand_phirel"]
+                           "pfcand_phirel",
+                           "pfcand_pt",
+                           "pfcand_e",
+          ]
           self.jet_r = 0.8
           self.jet_r2 = 0.8 * 0.8
 
