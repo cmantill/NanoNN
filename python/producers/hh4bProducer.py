@@ -908,7 +908,7 @@ class hh4bProducer(Module):
         if self._opts['option'] == "5":
             if(probe_jets[0].pt > 250 and probe_jets[1].pt > 250 and ((probe_jets[0].msoftdropJMS>50 and probe_jets[1].msoftdropJMS>50) or (probe_jets[0].regressed_massJMS>50 and probe_jets[1].regressed_massJMS>50)) and probe_jets[0].Xbb>0.8): passSel = True
         elif self._opts['option'] == "10":
-            if(((probe_jets[0].pt > 250 and probe_jets[1].pt > 250) or (probe_jets[0].pt > 250 and len(event.looseLeptons)>0)) and probe_jets[0].t32>=0.54): passSel = True
+            if(((probe_jets[0].pt > 250 and probe_jets[1].pt > 250) or (probe_jets[0].pt > 250 and len(event.looseLeptons)>0)) and probe_jets[0].t32<0.54): passSel = True
         if not passSel: return False
 
         # load gen history
