@@ -56,10 +56,17 @@ class hWWLepProducer(Module):
         self.out.branch("fj_isTopLep", "I", 1)
         self.out.branch("fj_isW", "I", 1)
         self.out.branch("fj_isWLep", "I", 1)
+
+        self.out.branch("fj_H_tt_elenuhad", "I", 1)
+        self.out.branch("fj_H_tt_munuhad", "I", 1)
+        self.out.branch("fj_H_tt_hadhad", "I", 1)
+
+        self.out.branch("fj_nProngs", "I", 1)
         
         self.out.branch("fj_H_WW_elenuqq", "I", 1)
         self.out.branch("fj_H_WW_munuqq", "I", 1)
         self.out.branch("fj_H_WW_taunuqq", "I", 1)
+
         self.out.branch("fj_genH_mass", "F", 1)
         self.out.branch("fj_genH_pt", "F", 1)
         self.out.branch("fj_dR_W", "F", 1)
@@ -76,7 +83,6 @@ class hWWLepProducer(Module):
         self.out.branch("fj_maxdR_HWW_daus", "F", 1)
         self.out.branch("fj_genW_decay", "F", 1)
         self.out.branch("fj_genWstar_decay", "F", 1)
-        self.out.branch("fj_nProngs", "I", 1)
           
     def endFile(self, inputFile, outputFile, inputTree, wrappedOutputTree):
         pass
@@ -120,6 +126,7 @@ class hWWLepProducer(Module):
                     return getFinal(dau)
             return gp
 
+        hadGenPartons = []
         lepGenTops = []
         hadGenTops = []
         hadGenWs = []
@@ -128,6 +135,11 @@ class hWWLepProducer(Module):
         bbGenHs = []
         ccGenHs = []
         qqGenHs = []
+        ttGenHs = []
+        TTGenHs = {'munuhad': {'H': [],'tau0': [], 'tau1': []},
+                     'elenuhad': {'H': [],'tau0': [], 'tau1': []},
+                     'hadhad': {'H': [],'tau0': [], 'tau1': []},
+                }
         wwGenHs = []
         WWGenHs = {'munuqq': {'H': [],'W': [], 'Wstar':[]},
                    'elenuqq': {'H': [],'W': [], 'Wstar':[]},
@@ -135,9 +147,14 @@ class hWWLepProducer(Module):
                    'qqqq': {'H': [],'W': [], 'Wstar':[]},
                }
         
+        tauvs = []
         for gp in genparts:
             if gp.statusFlags & (1 << 13) == 0:
                 continue
+
+            if abs(gp.pdgId) == 21 or abs(gp.pdgId) < 6:
+                hadGenPartons.append(gp)
+
             if abs(gp.pdgId) == 6:
                 for idx in gp.dauIdx:
                     dau = genparts[idx]
@@ -165,6 +182,52 @@ class hWWLepProducer(Module):
                     ccGenHs.append(gp)
                 if isDecay(gp,3) or isDecay(gp,2) or isDecay(gp,1):
                     qqGenHs.append(gp)
+                elif isDecay(gp,15):
+                    taus = []
+                    for idx in gp.dauIdx:
+                        dau = genparts[idx]
+                        if abs(dau.pdgId) == 15:
+                            genTau = getFinal(dau)
+                            taus.append(genTau)
+                            if len(taus)==2: break
+                    if len(taus)==2:
+                        nEle=0; nMu=0;
+                        for t in taus:
+                            tau = ROOT.TLorentzVector();
+                            tau.SetPtEtaPhiM(t.pt, t.eta, t.phi, t.mass)
+                            find_lep = False
+                            for idx in t.dauIdx:
+                                neutrino = ROOT.TLorentzVector()
+                                tdau = genparts[idx]
+                                if abs(tdau.pdgId) == 12:
+                                    # subtract neutrino from dau
+                                    neutrino.SetPtEtaPhiM(tdau.pt, tdau.eta, tdau.phi, tdau.mass)
+                                    ndau = tau -neutrino
+                                    nEle+=1
+                                    tauvs.append(ndau)
+                                    find_lep = True
+                                    break
+                                if abs(tdau.pdgId) == 14:
+                                    neutrino.SetPtEtaPhiM(tdau.pt, tdau.eta, tdau.phi, tdau.mass)
+                                    ndau = tau -neutrino
+                                    nMu+=1
+                                    tauvs.append(ndau)
+                                    find_lep = True
+                                    break
+                            if not find_lep:
+                                tauvs.append(tau)
+                              
+                        key = None
+                        if nEle==1 and nMu==0: key = "elenuhad"
+                        if nMu==1 and nEle==0: key = "munuhad"
+                        if nEle==0 and nMu==0: key = "hadhad"
+                        
+                        if key:
+                            ttGenHs.append(gp)
+                            TTGenHs[key]['H'].append(gp)
+                            TTGenHs[key]['tau0'].append(tauvs[0])
+                            TTGenHs[key]['tau1'].append(tauvs[1])
+
                 elif isDecay(gp,24):
                     ws = []
                     for idx in gp.dauIdx:
@@ -200,6 +263,10 @@ class hWWLepProducer(Module):
             parton.daus = (genparts[parton.genW.dauIdx[0]], genparts[parton.genW.dauIdx[1]],
                            genparts[parton.genWstar.dauIdx[0]], genparts[parton.genWstar.dauIdx[1]])
             
+        isQCD=0
+        if len(lepGenTops)==0 and len(hadGenTops)==0 and len(hadGenWs)==0 and len(hadGenZs)==0 and len(bbGenHs)==0 and len(ccGenHs)==0 and len(qqGenHs)==0 and len(wwGenHs)==0 and len(ttGenHs)==0:
+            isQCD=1
+
         for fj in fatjets:
             fj.genZ, fj.dr_Z, fj.genZidx = closest(fj, hadGenZs)
             fj.genW, fj.dr_W, fj.genWidx = closest(fj, hadGenWs)
@@ -210,7 +277,12 @@ class hWWLepProducer(Module):
             fj.genHcc, fj.dr_Hcc, fj.genHccidx = closest(fj, ccGenHs)
             fj.genHqq, fj.dr_Hqq, fj.genHqqidx = closest(fj, qqGenHs)
             fj.genHww, fj.dr_Hww, fj.genHwwidx = closest(fj, wwGenHs)
+            fj.genHtt, fj.dr_Htt, fj.genHttidx = closest(fj, ttGenHs)
 
+            fj.genHtt_munuhad, fj.dr_Htt_munuhad, tmpidx = closest(fj, TTGenHs['munuhad']['H'])
+            fj.genHtt_elenuhad, fj.dr_Htt_elenuhad, tmpidx = closest(fj, TTGenHs['elenuhad']['H'])
+            fj.genHtt_hadhad, fj.dr_Htt_hadhad, tmpids =  closest(fj, TTGenHs['hadhad']['H'])
+            
             fj.genHWW_qqqq, fj.dr_HWW_qqqq, tmpidx = closest(fj, WWGenHs['qqqq']['H'])
             fj.genHWW_munuqq, fj.dr_HWW_munuqq, tmpidx = closest(fj, WWGenHs['munuqq']['H'])
             fj.genHWW_elenuqq, fj.dr_HWW_elenuqq, tmpidx = closest(fj, WWGenHs['elenuqq']['H'])
@@ -241,78 +313,78 @@ class hWWLepProducer(Module):
             else:
                 fj.genHWW_Wdecay = 0
                 fj.genHWW_Wstardecay = 0
-                
 
+            # count the number of prongs
             nProngs = 0
             daus = []
             if fj.genHbb and fj.dr_Hbb<self.jet_r: daus = fj.genHbb.daus
             elif fj.genHcc and fj.dr_Hcc<self.jet_r: daus = fj.genHcc.daus
             elif fj.genHqq and fj.dr_Hqq<self.jet_r: daus = fj.genHqq.daus
             elif fj.genHww and fj.dr_Hww<self.jet_r: daus = fj.genHww.daus
-            for dau in daus:
+            elif fj.genT and fj.dr_T<self.jet_r: daus = fj.genT.daus
+            elif fj.genLepT and fj.dr_LepT<self.jet_r: daus = fj.genLepT.daus
+            elif fj.genW and fj.dr_W<self.jet_r: daus = fj.genW.daus
+            elif fj.genLepW and fj.dr_LepW<self.jet_r: daus = fj.genLepW.daus
+            for dau in daus: 
                 if deltaR(fj, dau)< self.jet_r: nProngs +=1
+            if fj.genHtt and fj.dr_Htt<self.jet_r and len(tauvs)==2:
+                nProngs = 0
+                jetv  = ROOT.TLorentzVector()
+                jetv.SetPtEtaPhiM(fj.pt, fj.eta, fj.phi, fj.msoftdrop)
+                if tauvs[0].Pt() > 0. and tauvs[1].Pt() > 0.:
+                    if jetv.DeltaR(tauvs[0]) < 0.8: nProngs += 1
+                    if jetv.DeltaR(tauvs[1]) < 0.8: nProngs += 1
             fj.nProngs = nProngs
 
-            fj.isHiggs = 0
-            if fj.dr_Hww<self.jet_r or fj.dr_Hbb < self.jet_r or fj.dr_Hcc < self.jet_r or fj.dr_Hqq < self.jet_r:
-                fj.isHiggs = 1
-
-            fj.isTop = 0
-            if fj.dr_T < self.jet_r: fj.isTop = 1
-
-            fj.isTopLep = 0
-            if fj.dr_LepT < self.jet_r: fj.isTopLep = 1
-
-            fj.isW = 0
-            if fj.dr_W < self.jet_r and fj.isHiggs == 0 and fj.isTop==0 and fj.isTopLep==0: 
-                if not fj.genHbb and not fj.genHcc and not fj.genHqq and not fj.genHww and not fj.genLepT and not fj.genT:
-                    fj.isW =1
-
-            fj.isWLep = 0
-            if fj.dr_LepW < self.jet_r and fj.isHiggs == 0 and fj.isTop==0 and fj.isTopLep==0: 
-                if not fj.genHbb and not fj.genHcc and not fj.genHqq and not fj.genHww and not fj.genLepT and not fj.genT and not fj.genW:
-                    fj.isWLep = 1
-
-            fj.isQCD = 0
-            if(fj.isHiggs==0 and fj.isTop==0 and fj.isW==0 and fj.isWLep==0 and fj.isTopLep==0):
-                if not fj.genHbb and not fj.genHcc and not fj.genHqq and not fj.genHww and not fj.genLepT and not fj.genT and not fj.genZ and not fj.genW and not fj.genLepW:
-                    fj.isQCD = 1
+            fj.genParton, fj.dr_Parton, fj.genPartonidx = closest(fj, hadGenPartons)
+            if isQCD and fj.dr_Parton < self.jet_r:
+                fj.isQCD = 1
+            else:
+                fj.isQCD = 0
 
     def analyze(self, event, ievent):
          event.idx = event._entry if event._tree._entrylist is None else event._tree._entrylist.GetEntry(event._entry)
          return True
 
     def fill(self, event, ievent):
+        is_pancakes = False
+
         jets = Collection(event, "FatJet")
         svs = Collection(event, "SV")
         met = Object(event, "MET")
-        pfcands = Collection(event, "PFCands")
-        fjpfcands = Collection(event, "FatJetPFCands")
+        if is_pancakes:
+            pfcands = Collection(event, "FatJetPFCands")
+        else:
+            pfcands = Collection(event, "PFCands")
+            fjpfcands = Collection(event, "FatJetPFCands")
 
         # load gen history
         self.loadGenHistory(event, jets)
         
-        print(event.idx)
-
         # avoid phi cut for now
         jet_idx = -1
         min_dphi = 999.
-        for ij, jet in enumerate(jets):
-            if (jet.pt < 200.): continue
-            this_dphi = abs(signedDeltaPhi(met.phi, jet.phi))
+        for ij, fj in enumerate(jets):
+            if (fj.pt < 200.): continue
+            this_dphi = abs(signedDeltaPhi(met.phi, fj.phi))
             if (this_dphi < min_dphi):
                 min_dphi = this_dphi
                 jet_idx = ij
 
+        pf_idx = 0
         for idx, fj in enumerate(jets):
             if (fj.pt < 200.): continue
-            # this part relies on nConstituents
-            # if (idx < jet_idx):
-            #     pf_idx = pf_idx + fj.nConstituents
-            #     continue
-            # elif (idx > jet_idx):
-            #     continue
-            # if fj.nConstituents < 1: continue
+            
+            if is_pancakes:
+                # this part relies on nConstituents
+                #if (idx < jet_idx):
+                #pf_idx = pf_idx + fj.nConstituents
+                pf_idx = pf_idx + fj.nPFConstituents
+                #continue
+                #elif (idx > jet_idx):
+                #    continue
+                #if fj.nConstituents < 1: continue
+                if fj.nPFConstituents < 1: continue
 
             self.out.fillBranch("fj_pt", fj.pt)
             self.out.fillBranch("fj_eta", fj.eta)
@@ -327,6 +399,11 @@ class hWWLepProducer(Module):
                 self.out.fillBranch("fj_mindPhi", 0)
                 
             self.out.fillBranch("fj_metdPhi",  abs(signedDeltaPhi(met.phi, fj.phi)))
+
+            # tautau gen info
+            self.out.fillBranch("fj_H_tt_munuhad", 1 if (fj.dr_Htt_munuhad < self.jet_r and fj.nProngs==2) else 0)
+            self.out.fillBranch("fj_H_tt_elenuhad", 1 if (fj.dr_Htt_elenuhad < self.jet_r and fj.nProngs==2) else 0)
+            self.out.fillBranch("fj_H_tt_hadhad", 1 if (fj.dr_Htt_hadhad < self.jet_r and fj.nProngs==2) else 0)
             
             # WW gen info
             dr_HWW_W = fj.dr_HWW_W if fj.dr_HWW_W else 99
@@ -349,6 +426,9 @@ class hWWLepProducer(Module):
             elif fj.genHqq:
                 genH_mass = fj.genHqq.mass
                 genH_pt = fj.genHqq.pt
+            elif fj.genHtt:
+                genH_mass = fj.genHtt.mass
+                genH_pt = fj.genHtt.pt
             self.out.fillBranch("fj_genH_mass", genH_mass)
             self.out.fillBranch("fj_genH_pt", genH_pt)
             
@@ -363,8 +443,6 @@ class hWWLepProducer(Module):
             self.out.fillBranch("fj_genWstar_phi", fj.genHWW_Wstar.phi if fj.genHWW_Wstar else -99)
             self.out.fillBranch("fj_genWstar_mass", fj.genHWW_Wstar.mass if fj.genHWW_Wstar else -99)
             
-            ptt = fj.genHWW_W.pt if fj.genHWW_W else -99
-            mm = fj.genHww.mass if fj.genHww else -99
             self.out.fillBranch("fj_maxdR_HWW_daus", max([deltaR(fj, dau) for dau in fj.genHww.daus]) if(fj.genHww and fj.dr_Hww < self.jet_r) else 99)
             self.out.fillBranch("fj_mindR_HWW_daus", min([deltaR(fj, dau) for dau in fj.genHww.daus]) if(fj.genHww and fj.dr_Hww < self.jet_r) else 99)
             
@@ -373,13 +451,13 @@ class hWWLepProducer(Module):
             self.out.fillBranch("fj_nProngs", fj.nProngs)
         
             self.out.fillBranch("fj_isQCD", fj.isQCD)
-            self.out.fillBranch("fj_isTop", fj.isTop)
-            self.out.fillBranch("fj_isTopLep", fj.isTopLep)
-            self.out.fillBranch("fj_isW", fj.isW)
-            self.out.fillBranch("fj_isWLep", fj.isWLep)
+            self.out.fillBranch("fj_isTop",  1 if fj.dr_T < self.jet_r else 0)
+            self.out.fillBranch("fj_isTopLep", 1 if fj.dr_LepT < self.jet_r else 0)
+            self.out.fillBranch("fj_isW",  1 if (fj.dr_W < self.jet_r and fj.dr_T > self.jet_r and not fj.genHww) else 0)
+            self.out.fillBranch("fj_isWLep", 1 if (fj.dr_LepW < self.jet_r and fj.dr_LepT > self.jet_r and not fj.genHww) else 0)
 
             jetv = ROOT.TLorentzVector()
-            jetv.SetPtEtaPhiM(jet.pt, jet.eta, jet.phi, jet.mass)
+            jetv.SetPtEtaPhiM(fj.pt, fj.eta, fj.phi, fj.mass)
             
             # fill sv information
             svpt = np.zeros(self.n_sv, dtype=np.float16)
@@ -418,8 +496,11 @@ class hWWLepProducer(Module):
                     
             # fill pf information
             # candrange = range(pf_idx, pf_idx + jet.nConstituents)
-            candrange = [fjpf.pFCandsIdx for fjpf in fjpfcands if fjpf.jetIdx == idx]
-            print('candrange',candrange)
+            if is_pancakes:
+                candrange = range(pf_idx, pf_idx + fj.nPFConstituents)
+            else:
+                candrange = [fjpf.pFCandsIdx for fjpf in fjpfcands if fjpf.jetIdx == idx]
+            #print('candrange',candrange)
             pfpt = np.zeros(self.n_pf, dtype=np.float16)
             pfeta = np.zeros(self.n_pf, dtype=np.float16)
             pfphi = np.zeros(self.n_pf, dtype=np.float16)
