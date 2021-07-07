@@ -94,6 +94,15 @@ class InputProducer(Module):
           self.out.branch("fj_genW_decay", "F", 1)
           self.out.branch("fj_genWstar_decay", "F", 1)
 
+          self.out.branch("fj_evt_met_covxx", "F", 1)
+          self.out.branch("fj_evt_met_covxy", "F", 1)
+          self.out.branch("fj_evt_met_covyy", "F", 1)
+          self.out.branch("fj_evt_met_dphi", "F", 1)
+          self.out.branch("fj_evt_met_pt", "F", 1)
+          self.out.branch("fj_evt_met_sig", "F", 1)
+          self.out.branch("fj_evt_pupmet_pt", "F", 1)
+          self.out.branch("fj_evt_pupmet_dphi", "F", 1)
+
           for key in self.pf_names:
                self.out.branch(key, "F", self.n_pf)
           for key in self.sv_names:
@@ -257,8 +266,9 @@ class InputProducer(Module):
                               if nMu==1 and nEle==0: key = "munuhad"
                               if nEle==0 and nMu==0: key = "hadhad"
 
+                              ttGenHs.append(gp)
+
                               if key:
-                                   ttGenHs.append(gp)
                                    TTGenHs[key]['H'].append(gp)
                                    TTGenHs[key]['tau0'].append(tauvs[0])
                                    TTGenHs[key]['tau1'].append(tauvs[1])
@@ -363,6 +373,7 @@ class InputProducer(Module):
                elif fj.genLepT and fj.dr_LepT<self.jet_r: daus = fj.genLepT.daus
                elif fj.genW and fj.dr_W<self.jet_r: daus = fj.genW.daus
                elif fj.genLepW and fj.dr_LepW<self.jet_r: daus = fj.genLepW.daus
+               elif fj.genZ and fj.dr_Z<self.jet_r: daus = fj.genW.daus
                for dau in daus: 
                     if deltaR(fj, dau)< self.jet_r: nProngs +=1
                if fj.genHtt and fj.dr_Htt<self.jet_r and len(tauvs)==2:
@@ -414,6 +425,9 @@ class InputProducer(Module):
 
      def fill(self, event, ievent):
 
+          met = Object(event, "MET")
+          pupmet = Object(event, "PuppiMET")
+          
           self.loadGenHistory(event,event._allFatJets)
 
           if self.jetType == "AK8":
@@ -455,8 +469,12 @@ class InputProducer(Module):
                     if idx>1: continue
 
                outputs = self.pnTagger.pad_one(self.tagInfo, event.idx-self.tagInfoMaker._uproot_start, jidx)
+               
+               is_fillflag = False
+               if fj.isQCDbb==1 or fj.isQCDb==1 or fj.isQCDcc==1 or fj.isQCDc==1 or fj.isQCDlep==1 or fj.isQCDothers ==1 or fj.nProngs>0:
+                    is_fillflag = True
 
-               if outputs and fj.pt>=200 and fj.msoftdrop>=0:
+               if outputs and fj.pt>=200 and fj.msoftdrop>=0 and is_fillflag:
                     self.out.fillBranch("fj_idx", fj.idx)
                     self.out.fillBranch("fj_pt", fj.pt)
                     self.out.fillBranch("fj_eta", fj.eta)
@@ -601,10 +619,28 @@ class InputProducer(Module):
                          self.out.fillBranch("fj_genjetmass", 0)
                          self.out.fillBranch("fj_genjetmsd", 0)
 
+                    # fill evt info
+                    self.out.fillBranch("fj_evt_met_covxx", met.covXX)
+                    self.out.fillBranch("fj_evt_met_covxy", met.covXY)
+                    self.out.fillBranch("fj_evt_met_covyy", met.covYY)
+                    self.out.fillBranch("fj_evt_met_dphi", signedDeltaPhi(met.phi,fj.phi))
+                    self.out.fillBranch("fj_evt_met_pt", met.pt)
+                    self.out.fillBranch("fj_evt_met_sig", met.significance)
+                    self.out.fillBranch("fj_evt_pupmet_pt", pupmet.pt)
+                    self.out.fillBranch("fj_evt_pupmet_dphi", signedDeltaPhi(pupmet.phi,fj.phi))
+
                     self.out.fill()
                     nevt+=1
 
           return True
+
+def signedDeltaPhi(phi1, phi2):
+    dPhi = phi1 - phi2
+    if (dPhi < -np.pi):
+        dPhi = 2 * np.pi + dPhi
+    elif (dPhi > np.pi):
+        dPhi = -2 * np.pi + dPhi
+    return dPhi
 
 inputProducer_AK8 = lambda : InputProducer()
 inputProducer_AK15 = lambda : InputProducer("AK15")
