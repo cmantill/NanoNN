@@ -312,7 +312,7 @@ class InputProducer(Module):
 
 
           isQCD=0
-          if len(lepGenTops)==0 and len(hadGenTops)==0 and len(hadGenWs)==0 and len(hadGenZs)==0 and len(bbGenHs)==0 and len(ccGenHs)==0 and len(qqGenHs)==0 and len(wwGenHs)==0 and len(ttGenHs)==0:
+          if len(lepGenTops)==0 and len(hadGenTops)==0 and len(hadGenWs)==0 and len(hadGenZs)==0 and len(bbGenHs)==0 and len(ccGenHs)==0 and len(qqGenHs)==0 and len(wwGenHs)==0 and len(ttGenHs)==0 and len(lepGenWs):
                isQCD=1
 
           for fj in fatjets:
