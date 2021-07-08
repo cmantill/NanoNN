@@ -221,9 +221,9 @@ class hWWLepProducer(Module):
                         if nEle==1 and nMu==0: key = "elenuhad"
                         if nMu==1 and nEle==0: key = "munuhad"
                         if nEle==0 and nMu==0: key = "hadhad"
-                        
+                        ttGenHs.append(gp)
+   
                         if key:
-                            ttGenHs.append(gp)
                             TTGenHs[key]['H'].append(gp)
                             TTGenHs[key]['tau0'].append(tauvs[0])
                             TTGenHs[key]['tau1'].append(tauvs[1])
@@ -257,14 +257,14 @@ class hWWLepProducer(Module):
         for parton in itertools.chain(lepGenTops, hadGenTops):
             parton.daus = (parton.genB, genparts[parton.genW.dauIdx[0]], genparts[parton.genW.dauIdx[1]])
             parton.genW.daus = parton.daus[1:]
-        for parton in itertools.chain(hadGenWs, hadGenZs, bbGenHs, ccGenHs, qqGenHs):
+        for parton in itertools.chain(hadGenWs, hadGenZs, bbGenHs, ccGenHs, qqGenHs, lepGenWs):
             parton.daus = (genparts[parton.dauIdx[0]], genparts[parton.dauIdx[1]])
         for parton in itertools.chain(wwGenHs):
             parton.daus = (genparts[parton.genW.dauIdx[0]], genparts[parton.genW.dauIdx[1]],
                            genparts[parton.genWstar.dauIdx[0]], genparts[parton.genWstar.dauIdx[1]])
             
         isQCD=0
-        if len(lepGenTops)==0 and len(hadGenTops)==0 and len(hadGenWs)==0 and len(hadGenZs)==0 and len(bbGenHs)==0 and len(ccGenHs)==0 and len(qqGenHs)==0 and len(wwGenHs)==0 and len(ttGenHs)==0:
+        if len(lepGenTops)==0 and len(hadGenTops)==0 and len(hadGenWs)==0 and len(hadGenZs)==0 and len(bbGenHs)==0 and len(ccGenHs)==0 and len(qqGenHs)==0 and len(wwGenHs)==0 and len(ttGenHs)==0 and len(lepGenWs)==0:
             isQCD=1
 
         for fj in fatjets:
@@ -374,7 +374,7 @@ class hWWLepProducer(Module):
         pf_idx = 0
         for idx, fj in enumerate(jets):
             if (fj.pt < 200.): continue
-            
+
             if is_pancakes:
                 # this part relies on nConstituents
                 #if (idx < jet_idx):
