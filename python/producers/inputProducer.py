@@ -304,7 +304,7 @@ class InputProducer(Module):
           for parton in itertools.chain(lepGenTops, hadGenTops):
                parton.daus = (parton.genB, genparts[parton.genW.dauIdx[0]], genparts[parton.genW.dauIdx[1]])
                parton.genW.daus = parton.daus[1:]
-          for parton in itertools.chain(hadGenWs, hadGenZs, bbGenHs, ccGenHs, qqGenHs):
+          for parton in itertools.chain(hadGenWs, hadGenZs, bbGenHs, ccGenHs, qqGenHs, lepGenWs):
                parton.daus = (genparts[parton.dauIdx[0]], genparts[parton.dauIdx[1]])
           for parton in itertools.chain(wwGenHs):               
                parton.daus = (genparts[parton.genW.dauIdx[0]], genparts[parton.genW.dauIdx[1]], 
