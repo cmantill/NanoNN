@@ -165,7 +165,8 @@ class hh4bProducer(Module):
             self._allJME = False
 
         if self._allJME:
-            self.applyHEMUnc = False
+            # self.applyHEMUnc = False
+            self.applyHEMUnc = self._jmeSysts['applyHEMUnc']
             # self.jetmetCorrectors = {'nominal': JetMETCorrector(year=self.year, jetType="AK4PFchs", jer='nominal', applyHEMUnc=self.applyHEMUnc),
             #                          'JERUp': JetMETCorrector(year=self.year, jetType="AK4PFchs", jer='up'),
             #                          'JERDown': JetMETCorrector(year=self.year, jetType="AK4PFchs", jer='down'),
@@ -231,10 +232,13 @@ class hh4bProducer(Module):
         
         # weight variables
         self.out.branch("weight", "F")
-        
+        #self.out.branch("weightLHEScaleUp", "F")
+        #self.out.branch("weightLHEScaleDown", "F")  
+
         # event variables
         self.out.branch("met", "F")
         self.out.branch("metphi", "F")
+        #self.out.branch("npvs", "F")
         self.out.branch("ht", "F")
         self.out.branch("passmetfilters", "O")
         self.out.branch("l1PreFiringWeight", "F")
@@ -366,6 +370,13 @@ class hh4bProducer(Module):
             self.out.branch(prefix + "Eta", "F")
             self.out.branch(prefix + "Phi", "F")
             self.out.branch(prefix + "Id", "I")
+
+        # gen variables
+        for idx in ([1, 2]):
+            prefix = 'genHiggs%i'%idx
+            self.out.branch(prefix + "Pt", "F")
+            self.out.branch(prefix + "Eta", "F")
+            self.out.branch(prefix + "Phi", "F")
             
     def endFile(self, inputFile, outputFile, inputTree, wrappedOutputTree):
         if self._opts['run_mass_regression'] and self._opts['WRITE_CACHE_FILE']:
@@ -461,6 +472,8 @@ class hh4bProducer(Module):
             fj.genW, fj.dr_W, fj.genWidx = closest(fj, hadGenWs)
             fj.genT, fj.dr_T, fj.genTidx = closest(fj, hadGenTops)
             fj.genLepT, fj.dr_LepT, fj.genLepidx = closest(fj, lepGenTops)
+
+        return hadGenHs
                
     def selectLeptons(self, event):
         # do lepton selection
@@ -648,11 +661,37 @@ class hh4bProducer(Module):
                 j.regressed_mass = 0          
                 j.regressed_massJMS = 0
 
-    def fillBaseEventInfo(self, event, fatjets):
+    def fillBaseEventInfo(self, event, fatjets, hadGenHs):
         self.out.fillBranch("ht", event.ht)
         self.out.fillBranch("met", event.met.pt)
         self.out.fillBranch("metphi", event.met.phi)
         self.out.fillBranch("weight", event.gweight)
+        #self.out.fillBranch("npvs", event.PV.npvs)
+
+        # qcd weights
+        """
+        https://twiki.cern.ch/twiki/bin/viewauth/CMS/TopSystematics#Factorization_and_renormalizatio
+        ['LHE scale variation weights (w_var / w_nominal)',
+        ' [0] is renscfact=0.5d0 facscfact=0.5d0 ',
+        ' [1] is renscfact=0.5d0 facscfact=1d0 ',
+        ' [2] is renscfact=0.5d0 facscfact=2d0 ',
+        ' [3] is renscfact=1d0 facscfact=0.5d0 ',
+        ' [4] is renscfact=1d0 facscfact=1d0 ',
+        ' [5] is renscfact=1d0 facscfact=2d0 ',
+        ' [6] is renscfact=2d0 facscfact=0.5d0 ',
+        ' [7] is renscfact=2d0 facscfact=1d0 ',
+        ' [8] is renscfact=2d0 facscfact=2d0 ']
+        """
+        # compute envelope for weights [1,2,3,4,6,8]?
+
+        # for PDF weights
+        # need to determine if there are replicas or hessian eigenvectors?
+        # 
+        # if len(event.LHEPdfWeight)>0:
+        # (1) get average of weights
+        # (2) then sum ( weight - average )**2
+        # (3) then take sqrt(sum/(nweights-1))
+        # weight up: 1.0+stddev, down: 1.0-stddev (max and min of 13?)
 
         met_filters = bool(
             event.Flag_goodVertices and
@@ -693,6 +732,17 @@ class hh4bProducer(Module):
         self.out.fillBranch("triggerEff3DWeight", tweight_3d)
         self.out.fillBranch("triggerEffMCWeight", tweight_mc)
         self.out.fillBranch("triggerEffMC3DWeight", tweight_3d_mc)
+
+        # fill gen higgs info
+        if hadGenHs and self.isMC:
+            if len(hadGenHs)>0:
+                self.out.fillBranch("genHiggs1Pt", hadGenHs[0].pt)
+                self.out.fillBranch("genHiggs1Eta", hadGenHs[0].eta)
+                self.out.fillBranch("genHiggs1Phi", hadGenHs[0].phi)
+                if len(hadGenHs)>1:
+                    self.out.fillBranch("genHiggs2Pt", hadGenHs[1].pt)
+                    self.out.fillBranch("genHiggs2Eta", hadGenHs[1].eta)
+                    self.out.fillBranch("genHiggs2Phi", hadGenHs[1].phi)
 
     def _get_filler(self, obj):
         def filler(branch, value, default=0):
@@ -912,10 +962,10 @@ class hh4bProducer(Module):
         if not passSel: return False
 
         # load gen history
-        self.loadGenHistory(event, probe_jets)
+        hadGenHs = self.loadGenHistory(event, probe_jets)
 
         # fill output branches
-        self.fillBaseEventInfo(event, probe_jets)
+        self.fillBaseEventInfo(event, probe_jets, hadGenHs)
         self.fillFatJetInfo(event, probe_jets)
           
         # for ak4 jets we only fill the b-tagged medium jets
