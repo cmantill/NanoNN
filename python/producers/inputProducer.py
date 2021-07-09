@@ -374,7 +374,7 @@ class InputProducer(Module):
                elif fj.genLepT and fj.dr_LepT<self.jet_r: daus = fj.genLepT.daus
                elif fj.genW and fj.dr_W<self.jet_r: daus = fj.genW.daus
                elif fj.genLepW and fj.dr_LepW<self.jet_r: daus = fj.genLepW.daus
-               elif fj.genZ and fj.dr_Z<self.jet_r: daus = fj.genW.daus
+               elif fj.genZ and fj.dr_Z<self.jet_r: daus = fj.genZ.daus
                for dau in daus: 
                     if deltaR(fj, dau)< self.jet_r: nProngs +=1
                if fj.genHtt and fj.dr_Htt<self.jet_r and len(tauvs)==2:
