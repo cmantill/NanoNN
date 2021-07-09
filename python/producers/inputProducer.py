@@ -193,8 +193,9 @@ class InputProducer(Module):
                               dau = genparts[idx]
                               if abs(dau.pdgId) == 511 or abs(dau.pdgId) == 521 or abs(dau.pdgId)==523:
                                    genB = getFinal(dau)
-                                   if isDecay(genB,11) or isDecay(genB,13):
-                                        lepGenBsPartons.append(genB)
+                                   if len(genB.dauIdx) > 0:
+                                        if isDecay(genB,11) or isDecay(genB,13):
+                                             lepGenBsPartons.append(genB)
                                         
                if abs(gp.pdgId) == 6:
                     for idx in gp.dauIdx:
