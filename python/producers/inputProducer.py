@@ -182,6 +182,7 @@ class InputProducer(Module):
 
 
           tauvs = []
+          isQCD=True
           for gp in genparts:
                if gp.statusFlags & (1 << 13) == 0:
                     continue
@@ -198,6 +199,7 @@ class InputProducer(Module):
                                              lepGenBsPartons.append(genB)
                                         
                if abs(gp.pdgId) == 6:
+                    isQCD = False
                     for idx in gp.dauIdx:
                          dau = genparts[idx]
                          if abs(dau.pdgId) == 24:
@@ -211,16 +213,19 @@ class InputProducer(Module):
                               gp.genB = dau
 
                elif abs(gp.pdgId) == 24:
+                    isQCD = False
                     if isHadronic(gp):
                          hadGenWs.append(gp)
                     else:
                          lepGenWs.append(gp)
 
                elif abs(gp.pdgId) == 23:
+                    isQCD = False
                     if isHadronic(gp):
                          hadGenZs.append(gp)
 
                elif abs(gp.pdgId) == 25:
+                    isQCD = False
                     if isDecay(gp,5):
                          bbGenHs.append(gp)
                     if isDecay(gp,4):
@@ -310,11 +315,6 @@ class InputProducer(Module):
           for parton in itertools.chain(wwGenHs):               
                parton.daus = (genparts[parton.genW.dauIdx[0]], genparts[parton.genW.dauIdx[1]], 
                               genparts[parton.genWstar.dauIdx[0]], genparts[parton.genWstar.dauIdx[1]])
-
-
-          isQCD=0
-          if len(lepGenTops)==0 and len(hadGenTops)==0 and len(hadGenWs)==0 and len(hadGenZs)==0 and len(bbGenHs)==0 and len(ccGenHs)==0 and len(qqGenHs)==0 and len(wwGenHs)==0 and len(ttGenHs)==0 and len(lepGenWs):
-               isQCD=1
 
           for fj in fatjets:
                fj.genZ, fj.dr_Z, fj.genZidx = closest(fj, hadGenZs)
