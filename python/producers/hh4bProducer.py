@@ -752,45 +752,48 @@ class hh4bProducer(Module):
     def fillFatJetInfo(self, event, fatjets):
         # hh system
         h1Jet = polarP4(fatjets[0],mass='regressed_massJMS')
-        h2Jet = polarP4(fatjets[1],mass='regressed_massJMS')
-        self.out.fillBranch("hh_pt", (h1Jet+h2Jet).Pt())
-        self.out.fillBranch("hh_eta", (h1Jet+h2Jet).Eta())
-        self.out.fillBranch("hh_phi", (h1Jet+h2Jet).Phi())
-        self.out.fillBranch("hh_mass", (h1Jet+h2Jet).M())
-        self.out.fillBranch("deltaEta_j1j2", abs(h1Jet.Eta() - h2Jet.Eta()))
-        self.out.fillBranch("deltaPhi_j1j2", deltaPhi(fatjets[0], fatjets[1]))
-        self.out.fillBranch("deltaR_j1j2", deltaR(fatjets[0], fatjets[1]))
-        self.out.fillBranch("ptj2_over_ptj1", fatjets[1].pt/fatjets[0].pt)
-        mj2overmj1 = -1 if fatjets[0].regressed_massJMS<=0 else fatjets[1].regressed_massJMS/fatjets[0].regressed_massJMS
-        self.out.fillBranch("mj2_over_mj1", mj2overmj1)
+        h2Jet = polarP4(None)
+        if len(fatjets)>1:
+            h2Jet = polarP4(fatjets[1],mass='regressed_massJMS')
+            self.out.fillBranch("hh_pt", (h1Jet+h2Jet).Pt())
+            self.out.fillBranch("hh_eta", (h1Jet+h2Jet).Eta())
+            self.out.fillBranch("hh_phi", (h1Jet+h2Jet).Phi())
+            self.out.fillBranch("hh_mass", (h1Jet+h2Jet).M())
+            self.out.fillBranch("deltaEta_j1j2", abs(h1Jet.Eta() - h2Jet.Eta()))
+            self.out.fillBranch("deltaPhi_j1j2", deltaPhi(fatjets[0], fatjets[1]))
+            self.out.fillBranch("deltaR_j1j2", deltaR(fatjets[0], fatjets[1]))
+            self.out.fillBranch("ptj2_over_ptj1", fatjets[1].pt/fatjets[0].pt)
+            mj2overmj1 = -1 if fatjets[0].regressed_massJMS<=0 else fatjets[1].regressed_massJMS/fatjets[0].regressed_massJMS
+            self.out.fillBranch("mj2_over_mj1", mj2overmj1)
 
-        if self.isMC:
-            h1Jet_JMS_Down = polarP4(fatjets[0],mass='regressed_mass_JMS_Down')
-            h2Jet_JMS_Down = polarP4(fatjets[1],mass='regressed_mass_JMS_Down')
-            h1Jet_JMS_Up = polarP4(fatjets[0],mass='regressed_mass_JMS_Up')
-            h2Jet_JMS_Up = polarP4(fatjets[1],mass='regressed_mass_JMS_Up')
+            if self.isMC:
+                h1Jet_JMS_Down = polarP4(fatjets[0],mass='regressed_mass_JMS_Down')
+                h2Jet_JMS_Down = polarP4(fatjets[1],mass='regressed_mass_JMS_Down')
+                h1Jet_JMS_Up = polarP4(fatjets[0],mass='regressed_mass_JMS_Up')
+                h2Jet_JMS_Up = polarP4(fatjets[1],mass='regressed_mass_JMS_Up')
 
-            h1Jet_JMR_Down = polarP4(fatjets[0],mass='regressed_mass_JMR_Down')
-            h2Jet_JMR_Down = polarP4(fatjets[1],mass='regressed_mass_JMR_Down')
-            h1Jet_JMR_Up = polarP4(fatjets[0],mass='regressed_mass_JMR_Up')
-            h2Jet_JMR_Up = polarP4(fatjets[1],mass='regressed_mass_JMR_Up')
-
-            self.out.fillBranch("hh_pt_JMS_Down", (h1Jet_JMS_Down+h2Jet_JMS_Down).Pt())
-            self.out.fillBranch("hh_eta_JMS_Down", (h1Jet_JMS_Down+h2Jet_JMS_Down).Eta())
-            self.out.fillBranch("hh_mass_JMS_Down", (h1Jet_JMS_Down+h2Jet_JMS_Down).M())
-            self.out.fillBranch("hh_pt_JMS_Up", (h1Jet_JMS_Up+h2Jet_JMS_Up).Pt())
-            self.out.fillBranch("hh_eta_JMS_Up", (h1Jet_JMS_Up+h2Jet_JMS_Up).Eta())
-            self.out.fillBranch("hh_mass_JMS_Up", (h1Jet_JMS_Up+h2Jet_JMS_Up).M())
-
-            self.out.fillBranch("hh_pt_JMR_Down", (h1Jet_JMR_Down+h2Jet_JMR_Down).Pt())
-            self.out.fillBranch("hh_eta_JMR_Down", (h1Jet_JMR_Down+h2Jet_JMR_Down).Eta())
-            self.out.fillBranch("hh_mass_JMR_Down", (h1Jet_JMR_Down+h2Jet_JMR_Down).M())
-            self.out.fillBranch("hh_pt_JMR_Up", (h1Jet_JMR_Up+h2Jet_JMR_Up).Pt())
-            self.out.fillBranch("hh_eta_JMR_Up", (h1Jet_JMR_Up+h2Jet_JMR_Up).Eta())
-            self.out.fillBranch("hh_mass_JMR_Up", (h1Jet_JMR_Up+h2Jet_JMR_Up).M())
+                h1Jet_JMR_Down = polarP4(fatjets[0],mass='regressed_mass_JMR_Down')
+                h2Jet_JMR_Down = polarP4(fatjets[1],mass='regressed_mass_JMR_Down')
+                h1Jet_JMR_Up = polarP4(fatjets[0],mass='regressed_mass_JMR_Up')
+                h2Jet_JMR_Up = polarP4(fatjets[1],mass='regressed_mass_JMR_Up')
+    
+                self.out.fillBranch("hh_pt_JMS_Down", (h1Jet_JMS_Down+h2Jet_JMS_Down).Pt())
+                self.out.fillBranch("hh_eta_JMS_Down", (h1Jet_JMS_Down+h2Jet_JMS_Down).Eta())
+                self.out.fillBranch("hh_mass_JMS_Down", (h1Jet_JMS_Down+h2Jet_JMS_Down).M())
+                self.out.fillBranch("hh_pt_JMS_Up", (h1Jet_JMS_Up+h2Jet_JMS_Up).Pt())
+                self.out.fillBranch("hh_eta_JMS_Up", (h1Jet_JMS_Up+h2Jet_JMS_Up).Eta())
+                self.out.fillBranch("hh_mass_JMS_Up", (h1Jet_JMS_Up+h2Jet_JMS_Up).M())
+                
+                self.out.fillBranch("hh_pt_JMR_Down", (h1Jet_JMR_Down+h2Jet_JMR_Down).Pt())
+                self.out.fillBranch("hh_eta_JMR_Down", (h1Jet_JMR_Down+h2Jet_JMR_Down).Eta())
+                self.out.fillBranch("hh_mass_JMR_Down", (h1Jet_JMR_Down+h2Jet_JMR_Down).M())
+                self.out.fillBranch("hh_pt_JMR_Up", (h1Jet_JMR_Up+h2Jet_JMR_Up).Pt())
+                self.out.fillBranch("hh_eta_JMR_Up", (h1Jet_JMR_Up+h2Jet_JMR_Up).Eta())
+                self.out.fillBranch("hh_mass_JMR_Up", (h1Jet_JMR_Up+h2Jet_JMR_Up).M())
 
         for idx in ([1, 2]):
             prefix = 'fatJet%i' % idx
+            if len(fatjets) < idx: continue
             fj = fatjets[idx - 1]
             fill_fj = self._get_filler(fj)
             fill_fj(prefix + "Pt", fj.pt)
@@ -947,8 +950,13 @@ class hh4bProducer(Module):
         
         # basic jet selection 
         probe_jets = [fj for fj in event.fatjets if fj.pt > 200]
-        if len(probe_jets) < 2:
-            return False
+        if self._opts['option'] == "10":
+            probe_jets = [fj for fj in event.fatjets if (fj.pt > 200 and fj.t32<0.54)]
+            if len(probe_jets) < 1:
+                return False
+        else:
+            if len(probe_jets) < 2:
+                return False
 
         # evaluate regression
         self.evalMassRegression(event, probe_jets)
@@ -958,7 +966,9 @@ class hh4bProducer(Module):
         if self._opts['option'] == "5":
             if(probe_jets[0].pt > 250 and probe_jets[1].pt > 250 and ((probe_jets[0].msoftdropJMS>50 and probe_jets[1].msoftdropJMS>50) or (probe_jets[0].regressed_massJMS>50 and probe_jets[1].regressed_massJMS>50)) and probe_jets[0].Xbb>0.8): passSel = True
         elif self._opts['option'] == "10":
-            if(((probe_jets[0].pt > 250 and probe_jets[1].pt > 250) or (probe_jets[0].pt > 250 and len(event.looseLeptons)>0)) and probe_jets[0].t32<0.54): passSel = True
+            if len(probe_jets) >= 2:
+                if(probe_jets[0].pt > 250 and probe_jets[1].pt > 250): passSel = True
+            if(probe_jets[0].pt > 250 and len(event.looseLeptons)>0): passSel = True
         if not passSel: return False
 
         # load gen history
