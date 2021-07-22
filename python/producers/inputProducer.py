@@ -63,6 +63,7 @@ class InputProducer(Module):
           self.out.branch("fj_isToplep", "I", 1)
           self.out.branch("fj_isW", "I", 1)
           self.out.branch("fj_isWlep", "I", 1)
+          self.out.branch("fj_isZ", "I", 1)
           self.out.branch("fj_H_bb", "I", 1)
           self.out.branch("fj_H_cc", "I", 1)
           self.out.branch("fj_H_qq", "I", 1)
@@ -316,6 +317,9 @@ class InputProducer(Module):
                parton.daus = (genparts[parton.genW.dauIdx[0]], genparts[parton.genW.dauIdx[1]], 
                               genparts[parton.genWstar.dauIdx[0]], genparts[parton.genWstar.dauIdx[1]])
 
+          #if isQCD:
+          #     print('is QCD')
+
           for fj in fatjets:
                fj.genZ, fj.dr_Z, fj.genZidx = closest(fj, hadGenZs)
                fj.genW, fj.dr_W, fj.genWidx = closest(fj, hadGenWs)
@@ -511,6 +515,7 @@ class InputProducer(Module):
                     self.out.fillBranch("fj_isTop", 1 if fj.dr_T < self.jet_r else 0)
                     self.out.fillBranch("fj_isToplep", 1 if fj.dr_LepT < self.jet_r else 0)
                     self.out.fillBranch("fj_isW", 1 if (fj.dr_W < self.jet_r and fj.dr_T > self.jet_r and not fj.genHww) else 0)
+                    self.out.fillBranch("fj_isZ", 1 if (fj.dr_Z < self.jet_r) else 0)
                     self.out.fillBranch("fj_isWlep", 1 if (fj.dr_LepW < self.jet_r and fj.dr_LepT > self.jet_r and not fj.genHww) else 0)
 
                     self.out.fillBranch("fj_H_bb", 1 if (fj.dr_Hbb < self.jet_r and max([deltaR(fj, dau) for dau in fj.genHbb.daus])<1.0) else 0)
