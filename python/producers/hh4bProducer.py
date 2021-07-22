@@ -718,16 +718,22 @@ class hh4bProducer(Module):
             self.out.fillBranch("l1PreFiringWeightDown", 1.0)
 
         # trigger weights
+        tweight = 1.0
+        tweight_mc = 1.0
+        tweight_3d = 1.0
+        tweight_3d_mc = 1.0
         if self.isMC:
-            tweight = 1.0 - (1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS))*(1.0 - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS))
-            tweight_mc = 1.0 - (1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, -1, True))*(1.0 - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, -1, True))
-            tweight_3d = 1.0 - (1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, fatjets[0].Xbb))*(1.0 - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, fatjets[1].Xbb))
-            tweight_3d_mc = 1.0 - (1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, fatjets[0].Xbb, True))*(1.0 - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, fatjets[1].Xbb, True))
-        else:
-            tweight = 1.0
-            tweight_mc = 1.0
-            tweight_3d = 1.0
-            tweight_3d_mc = 1.0
+            if len(fatjets)>1:
+                tweight = 1.0 - (1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS))*(1.0 - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS))
+                tweight_mc = 1.0 - (1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, -1, True))*(1.0 - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, -1, True))
+                tweight_3d = 1.0 - (1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, fatjets[0].Xbb))*(1.0 - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, fatjets[1].Xbb))
+                tweight_3d_mc = 1.0 - (1.0 - self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, fatjets[0].Xbb, True))*(1.0 - self._teff.getEfficiency(fatjets[1].pt, fatjets[1].msoftdropJMS, fatjets[1].Xbb, True))
+            else:
+                if len(fatjets)>0:
+                    tweight = self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS)
+                    tweight_mc = self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, -1, True)
+                    tweight_3d = self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, fatjets[0].Xbb)
+                    tweight_3d_mc = self._teff.getEfficiency(fatjets[0].pt, fatjets[0].msoftdropJMS, fatjets[0].Xbb, True)
         self.out.fillBranch("triggerEffWeight", tweight)
         self.out.fillBranch("triggerEff3DWeight", tweight_3d)
         self.out.fillBranch("triggerEffMCWeight", tweight_mc)
@@ -793,8 +799,8 @@ class hh4bProducer(Module):
 
         for idx in ([1, 2]):
             prefix = 'fatJet%i' % idx
-            if len(fatjets) < idx: continue
-            fj = fatjets[idx - 1]
+            if len(fatjets)<=idx-1: continue
+            fj = fatjets[idx-1]
             fill_fj = self._get_filler(fj)
             fill_fj(prefix + "Pt", fj.pt)
             fill_fj(prefix + "Eta", fj.eta)
@@ -856,10 +862,11 @@ class hh4bProducer(Module):
             fill_fj(prefix + "PtOverMHH", fj.pt/(h1Jet+h2Jet).M())
 
             if self.isMC:
-                fill_fj(prefix + "PtOverMHH_JMS_Down", fj.pt/(h1Jet_JMS_Down+h2Jet_JMS_Down).M())
-                fill_fj(prefix + "PtOverMHH_JMS_Up", fj.pt/(h1Jet_JMS_Up+h2Jet_JMS_Up).M())
-                fill_fj(prefix + "PtOverMHH_JMR_Down", fj.pt/(h1Jet_JMR_Down+h2Jet_JMR_Down).M())
-                fill_fj(prefix + "PtOverMHH_JMR_Up", fj.pt/(h1Jet_JMR_Up+h2Jet_JMR_Up).M())
+                if len(fatjets)>1:
+                    fill_fj(prefix + "PtOverMHH_JMS_Down", fj.pt/(h1Jet_JMS_Down+h2Jet_JMS_Down).M())
+                    fill_fj(prefix + "PtOverMHH_JMS_Up", fj.pt/(h1Jet_JMS_Up+h2Jet_JMS_Up).M())
+                    fill_fj(prefix + "PtOverMHH_JMR_Down", fj.pt/(h1Jet_JMR_Down+h2Jet_JMR_Down).M())
+                    fill_fj(prefix + "PtOverMHH_JMR_Up", fj.pt/(h1Jet_JMR_Up+h2Jet_JMR_Up).M())
 
             # matching variables
             if self.isMC:
@@ -985,7 +992,7 @@ class hh4bProducer(Module):
         self.fillLeptonInfo(event, event.looseLeptons)
         
         # for all jme systs
-        if self._allJME and self.isMC:
+        if self._allJME and self.isMC and self._opts['option'] == "5":
             self.fillFatJetInfoJME(event)
 
         return True
