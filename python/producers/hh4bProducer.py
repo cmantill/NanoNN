@@ -796,11 +796,33 @@ class hh4bProducer(Module):
                 self.out.fillBranch("hh_pt_JMR_Up", (h1Jet_JMR_Up+h2Jet_JMR_Up).Pt())
                 self.out.fillBranch("hh_eta_JMR_Up", (h1Jet_JMR_Up+h2Jet_JMR_Up).Eta())
                 self.out.fillBranch("hh_mass_JMR_Up", (h1Jet_JMR_Up+h2Jet_JMR_Up).M())
+        else:
+            self.out.fillBranch("hh_pt", 0)
+            self.out.fillBranch("hh_eta", 0)
+            self.out.fillBranch("hh_phi", 0)
+            self.out.fillBranch("hh_mass", 0)
+            self.out.fillBranch("deltaEta_j1j2", 0)
+            self.out.fillBranch("deltaPhi_j1j2", 0)
+            self.out.fillBranch("deltaR_j1j2", 0)
+            self.out.fillBranch("ptj2_over_ptj1", 0)
+            self.out.fillBranch("mj2_over_mj1", 0)
+            if self.isMC:
+                self.out.fillBranch("hh_pt_JMS_Down",0)
+                self.out.fillBranch("hh_eta_JMS_Down",0)
+                self.out.fillBranch("hh_mass_JMS_Down",0)
+                self.out.fillBranch("hh_pt_JMS_Up", 0)
+                self.out.fillBranch("hh_eta_JMS_Up",0)
+                self.out.fillBranch("hh_mass_JMS_Up",0)
+                self.out.fillBranch("hh_pt_JMR_Down",0)
+                self.out.fillBranch("hh_eta_JMR_Down",0)
+                self.out.fillBranch("hh_mass_JMR_Down",0)
+                self.out.fillBranch("hh_pt_JMR_Up", 0)
+                self.out.fillBranch("hh_eta_JMR_Up",0)
+                self.out.fillBranch("hh_mass_JMR_Up",0)
 
         for idx in ([1, 2]):
             prefix = 'fatJet%i' % idx
-            if len(fatjets)<=idx-1: continue
-            fj = fatjets[idx-1]
+            fj = fatjets[idx-1] if len(fatjets)>idx-1 else _NullObject()
             fill_fj = self._get_filler(fj)
             fill_fj(prefix + "Pt", fj.pt)
             fill_fj(prefix + "Eta", fj.eta)
@@ -834,62 +856,85 @@ class hh4bProducer(Module):
                 fill_fj(prefix + "MassRegressed", fj.regressed_massJMS)
             
             # lepton variables
-            hasMuon = True if (closest(fj, event.cleaningMuons)[1] < 1.0) else False
-            hasElectron = True if (closest(fj, event.cleaningElectrons)[1] < 1.0) else False
+            if fj:
+                hasMuon = True if (closest(fj, event.cleaningMuons)[1] < 1.0) else False
+                hasElectron = True if (closest(fj, event.cleaningElectrons)[1] < 1.0) else False
+                hasBJetCSVLoose = True if (closest(fj, event.bljets)[1] < 1.0) else False
+                hasBJetCSVMedium = True if (closest(fj, event.bmjets)[1] < 1.0) else False
+                hasBJetCSVTight = True if (closest(fj, event.btjets)[1] < 1.0) else False
+            else:
+                hasMuon = False
+                hasElectron = False
+                hasBJetCSVLoose = False
+                hasBJetCSVMedium = False
+                hasBJetCSVTight = False
             fill_fj(prefix + "HasMuon", hasMuon)
             fill_fj(prefix + "HasElectron", hasElectron)
-
-            # b jets
-            hasBJetCSVLoose = True if (closest(fj, event.bljets)[1] < 1.0) else False
-            hasBJetCSVMedium = True if (closest(fj, event.bmjets)[1] < 1.0) else False
-            hasBJetCSVTight = True if (closest(fj, event.btjets)[1] < 1.0) else False
             fill_fj(prefix + "HasBJetCSVLoose", hasBJetCSVLoose)
             fill_fj(prefix + "HasBJetCSVMedium", hasBJetCSVMedium)
             fill_fj(prefix + "HasBJetCSVTight", hasBJetCSVTight)
 
             nb_fj_opp_ = 0
             for j in event.bmjetsCSV:
-                if abs(deltaPhi(j, fj)) > 2.5 and j.pt>25:
-                    nb_fj_opp_ += 1
+                if fj:
+                    if abs(deltaPhi(j, fj)) > 2.5 and j.pt>25:
+                        nb_fj_opp_ += 1
             hasBJetOpp = True if (nb_fj_opp_>0) else False
             fill_fj(prefix + "OppositeHemisphereHasBJet", hasBJetOpp)
 
             # hh variables
-            ptovermsd = -1 if fj.msoftdropJMS<=0 else fj.pt/fj.msoftdropJMS
-            ptovermregressed = -1 if fj.regressed_massJMS<=0 else fj.pt/fj.regressed_massJMS
+            ptovermsd = -1 
+            ptovermregressed = -1 
+            if fj:
+                ptovermsd = -1 if fj.msoftdropJMS<=0 else fj.pt/fj.msoftdropJMS
+                ptovermregressed = -1 if fj.regressed_massJMS<=0 else fj.pt/fj.regressed_massJMS
+                fill_fj(prefix + "PtOverMHH", fj.pt/(h1Jet+h2Jet).M())
             fill_fj(prefix + "PtOverMSD", ptovermsd)
             fill_fj(prefix + "PtOverMRegressed", ptovermregressed)
-            fill_fj(prefix + "PtOverMHH", fj.pt/(h1Jet+h2Jet).M())
+            fill_fj(prefix + "PtOverMHH", -1)
 
             if self.isMC:
-                if len(fatjets)>1:
+                if len(fatjets)>1 and fj:
                     fill_fj(prefix + "PtOverMHH_JMS_Down", fj.pt/(h1Jet_JMS_Down+h2Jet_JMS_Down).M())
                     fill_fj(prefix + "PtOverMHH_JMS_Up", fj.pt/(h1Jet_JMS_Up+h2Jet_JMS_Up).M())
                     fill_fj(prefix + "PtOverMHH_JMR_Down", fj.pt/(h1Jet_JMR_Down+h2Jet_JMR_Down).M())
                     fill_fj(prefix + "PtOverMHH_JMR_Up", fj.pt/(h1Jet_JMR_Up+h2Jet_JMR_Up).M())
+                else:
+                    fill_fj(prefix + "PtOverMHH_JMS_Down",0)
+                    fill_fj(prefix + "PtOverMHH_JMS_Up", 0)
+                    fill_fj(prefix + "PtOverMHH_JMR_Down", 0)
+                    fill_fj(prefix + "PtOverMHH_JMR_Up",0)
 
             # matching variables
             if self.isMC:
                 # info of the closest genH
                 fill_fj(prefix + "GenMatchIndex", fj.genHidx if fj.genHidx else -1)
 
-    def fillFatJetInfoJME(self, event):
+    def fillFatJetInfoJME(self, event, fatjets):
         if not self._allJME or not self.isMC: return
         for syst in self._jmeLabels:
             if syst == 'nominal': continue
-            if len(event.fatjetsJME[syst]) < 2: return
-            h1Jet = polarP4(event.fatjetsJME[syst][0],mass='regressed_massJMS')
-            h2Jet = polarP4(event.fatjetsJME[syst][1],mass='regressed_massJMS')
-            self.out.fillBranch("hh_pt" + "_" + syst, (h1Jet+h2Jet).Pt())
-            self.out.fillBranch("hh_eta" + "_" + syst, (h1Jet+h2Jet).Eta())
-            self.out.fillBranch("hh_mass" + "_" + syst, (h1Jet+h2Jet).M())
+            if len(event.fatjetsJME[syst]) < 2 or len(fatjets)<2: 
+                self.out.fillBranch("hh_pt" + "_" + syst, 0)
+                self.out.fillBranch("hh_eta" + "_" + syst, 0)
+                self.out.fillBranch("hh_mass" + "_" + syst, 0)
+                for idx in ([1, 2]):
+                    prefix = 'fatJet%i' % idx
+                    self.out.fillBranch(prefix + "Pt" + "_" + syst, 0)
+                    self.out.fillBranch(prefix + "PtOverMHH" + "_" + syst, 0)
+            else:
+                h1Jet = polarP4(event.fatjetsJME[syst][0],mass='regressed_massJMS')
+                h2Jet = polarP4(event.fatjetsJME[syst][1],mass='regressed_massJMS')
+                self.out.fillBranch("hh_pt" + "_" + syst, (h1Jet+h2Jet).Pt())
+                self.out.fillBranch("hh_eta" + "_" + syst, (h1Jet+h2Jet).Eta())
+                self.out.fillBranch("hh_mass" + "_" + syst, (h1Jet+h2Jet).M())
 
-            for idx in ([1, 2]):
-                prefix = 'fatJet%i' % idx
-                fj = event.fatjetsJME[syst][idx - 1]
-                fill_fj = self._get_filler(fj)
-                fill_fj(prefix + "Pt" + "_" + syst, fj.pt)
-                fill_fj(prefix + "PtOverMHH" + "_" + syst, fj.pt/(h1Jet+h2Jet).M())
+                for idx in ([1, 2]):
+                    prefix = 'fatJet%i' % idx
+                    fj = event.fatjetsJME[syst][idx - 1]
+                    fill_fj = self._get_filler(fj)
+                    fill_fj(prefix + "Pt" + "_" + syst, fj.pt)
+                    fill_fj(prefix + "PtOverMHH" + "_" + syst, fj.pt/(h1Jet+h2Jet).M())
 
     def fillJetInfo(self, event, jets):
         nBTaggedJets = 0
@@ -992,8 +1037,8 @@ class hh4bProducer(Module):
         self.fillLeptonInfo(event, event.looseLeptons)
         
         # for all jme systs
-        if self._allJME and self.isMC and self._opts['option'] == "5":
-            self.fillFatJetInfoJME(event)
+        if self._allJME and self.isMC:
+            self.fillFatJetInfoJME(event, probe_jets)
 
         return True
 
