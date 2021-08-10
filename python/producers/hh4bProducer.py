@@ -224,8 +224,8 @@ class hh4bProducer(Module):
                 os.remove(f)
                 
         if self._opts['run_mass_regression']:
-            for p in self.pnMassRegressions:
-                p.load_cache(inputFile)
+            #for p in self.pnMassRegressions:
+            #    p.load_cache(inputFile)
             self.tagInfoMaker.init_file(inputFile, fetch_step=1000)
                 
         self.out = wrappedOutputTree
@@ -278,6 +278,7 @@ class hh4bProducer(Module):
 
             # here we form the MHH system w. mass regressed
             self.out.branch(prefix + "PtOverMHH", "F")
+            self.out.branch(prefix + "PtOverMHH_MassRegressed", "F")
             self.out.branch(prefix + "PtOverMSD", "F")
             self.out.branch(prefix + "PtOverMRegressed", "F")
 
@@ -297,6 +298,11 @@ class hh4bProducer(Module):
                 self.out.branch(prefix + "PtOverMHH_JMR_Down", "F")
                 self.out.branch(prefix + "PtOverMHH_JMR_Up", "F")
 
+                self.out.branch(prefix + "PtOverMHH_MassRegressed_JMS_Down", "F")
+                self.out.branch(prefix + "PtOverMHH_MassRegressed_JMS_Up", "F")
+                self.out.branch(prefix + "PtOverMHH_MassRegressed_JMR_Down", "F")
+                self.out.branch(prefix + "PtOverMHH_MassRegressed_JMR_Up", "F")
+
                 if self._allJME:
                     for syst in self._jmeLabels:
                         if syst == 'nominal': continue
@@ -309,7 +315,19 @@ class hh4bProducer(Module):
         self.out.branch("hh_phi", "F")
         self.out.branch("hh_mass", "F")
 
+        self.out.branch("hh_pt_MassRegressed", "F")
+        self.out.branch("hh_eta_MassRegressed", "F")
+        self.out.branch("hh_phi_MassRegressed", "F")
+        self.out.branch("hh_mass_MassRegressed", "F")
+
         if self.isMC:
+            self.out.branch("hh_pt_JMR_Down", "F")
+            self.out.branch("hh_pt_JMR_Up", "F")
+            self.out.branch("hh_eta_JMR_Down", "F")
+            self.out.branch("hh_eta_JMR_Up", "F")
+            self.out.branch("hh_mass_JMR_Down", "F")
+            self.out.branch("hh_mass_JMR_Up", "F")
+
             self.out.branch("hh_pt_JMS_Down", "F")
             self.out.branch("hh_pt_JMS_Up", "F")
             self.out.branch("hh_eta_JMS_Down", "F")
@@ -317,12 +335,19 @@ class hh4bProducer(Module):
             self.out.branch("hh_mass_JMS_Down", "F")
             self.out.branch("hh_mass_JMS_Up", "F")
 
-            self.out.branch("hh_pt_JMR_Down", "F")
-            self.out.branch("hh_pt_JMR_Up", "F")
-            self.out.branch("hh_eta_JMR_Down", "F")
-            self.out.branch("hh_eta_JMR_Up", "F")
-            self.out.branch("hh_mass_JMR_Down", "F")
-            self.out.branch("hh_mass_JMR_Up", "F")
+            self.out.branch("hh_pt_MassRegressed_JMR_Down", "F")
+            self.out.branch("hh_pt_MassRegressed_JMR_Up", "F")
+            self.out.branch("hh_eta_MassRegressed_JMR_Down", "F")
+            self.out.branch("hh_eta_MassRegressed_JMR_Up", "F")
+            self.out.branch("hh_mass_MassRegressed_JMR_Down", "F")
+            self.out.branch("hh_mass_MassRegressed_JMR_Up", "F")
+
+            self.out.branch("hh_pt_MassRegressed_JMS_Down", "F")
+            self.out.branch("hh_pt_MassRegressed_JMS_Up", "F")
+            self.out.branch("hh_eta_MassRegressed_JMS_Down", "F")
+            self.out.branch("hh_eta_MassRegressed_JMS_Up", "F")
+            self.out.branch("hh_mass_MassRegressed_JMS_Down", "F")
+            self.out.branch("hh_mass_MassRegressed_JMS_Up", "F")
 
         if self.isMC and self._allJME:
             for syst in self._jmeLabels:
@@ -335,8 +360,9 @@ class hh4bProducer(Module):
         self.out.branch("deltaPhi_j1j2", "F")
         self.out.branch("deltaR_j1j2", "F")
         self.out.branch("ptj2_over_ptj1", "F")
-        self.out.branch("mj2_over_mj1", "F")
 
+        self.out.branch("mj2_over_mj1", "F")
+        self.out.branch("mj2_over_mj1_MassRegressed", "F")
         
         # for phase-space overlap removal with VBFHH->4b boosted analysis
         # small jets
@@ -487,7 +513,8 @@ class hh4bProducer(Module):
             el.Id = el.charge * (11)
             if el.pt > 7 and abs(el.eta) < 2.5 and abs(el.dxy) < 0.05 and abs(el.dz) < 0.2:
                 event.vbfLeptons.append(el)
-            if el.pt > 35 and abs(el.eta) <= 2.5 and el.miniPFRelIso_all <= 0.2 and el.cutBased:
+            #if el.pt > 35 and abs(el.eta) <= 2.5 and el.miniPFRelIso_all <= 0.2 and el.cutBased:
+            if el.pt > 35 and abs(el.eta) <= 2.5 and el.miniPFRelIso_all <= 0.2 and el.cutBased>3: # cutBased ID: (0:fail, 1:veto, 2:loose, 3:medium, 4:tight)
                 event.looseLeptons.append(el)
             if el.pt > 30 and el.mvaFall17V2noIso_WP90:
                 event.cleaningElectrons.append(el)
@@ -571,6 +598,7 @@ class hh4bProducer(Module):
                 fj.msoftdropJMS = fj.msoftdrop*self._jmsValues[0]
             else:
                 fj.msoftdropJMS = fj.msoftdrop
+
             # do we need to recompute the softdrop mass?
             # fj.msoftdrop = sumP4(*fj.subjets).M()
             
@@ -644,6 +672,7 @@ class hh4bProducer(Module):
                 corr_mass_JMRUp = random.gauss(0.0, self._jmrValuesReg[2] - 1.)
                 corr_mass = max(self._jmrValuesReg[0]-1.,0.)/(self._jmrValuesReg[2]-1.) * corr_mass_JMRUp
                 corr_mass_JMRDown = max(self._jmrValuesReg[1]-1.,0.)/(self._jmrValuesReg[2]-1.) * corr_mass_JMRUp
+
                 j.regressed_mass_corr = j.regressed_massJMS*(1.+corr_mass)
                 j.regressed_mass_JMS_Down = j.regressed_mass_corr*(self._jmsValuesReg[1]/self._jmsValuesReg[0])
                 j.regressed_mass_JMS_Up = j.regressed_mass_corr*(self._jmsValuesReg[2]/self._jmsValuesReg[0])
@@ -757,31 +786,43 @@ class hh4bProducer(Module):
 
     def fillFatJetInfo(self, event, fatjets):
         # hh system
-        h1Jet = polarP4(fatjets[0],mass='regressed_massJMS')
+        h1Jet = polarP4(fatjets[0],mass='msoftdropJMS')
         h2Jet = polarP4(None)
+        h1Jet_reg = polarP4(fatjets[0],mass='regressed_massJMS')
+        h2Jet_reg = polarP4(None)
         if len(fatjets)>1:
-            h2Jet = polarP4(fatjets[1],mass='regressed_massJMS')
+            h2Jet = polarP4(fatjets[1],mass='msoftdropJMS')
+            h2Jet_reg = polarP4(fatjets[1],mass='regressed_massJMS')
             self.out.fillBranch("hh_pt", (h1Jet+h2Jet).Pt())
             self.out.fillBranch("hh_eta", (h1Jet+h2Jet).Eta())
             self.out.fillBranch("hh_phi", (h1Jet+h2Jet).Phi())
             self.out.fillBranch("hh_mass", (h1Jet+h2Jet).M())
+
+            self.out.fillBranch("hh_pt_MassRegressed", (h1Jet_reg+h2Jet_reg).Pt())
+            self.out.fillBranch("hh_eta_MassRegressed", (h1Jet_reg+h2Jet_reg).Eta())
+            self.out.fillBranch("hh_phi_MassRegressed", (h1Jet_reg+h2Jet_reg).Phi())
+            self.out.fillBranch("hh_mass_MassRegressed", (h1Jet_reg+h2Jet_reg).M())
+
             self.out.fillBranch("deltaEta_j1j2", abs(h1Jet.Eta() - h2Jet.Eta()))
             self.out.fillBranch("deltaPhi_j1j2", deltaPhi(fatjets[0], fatjets[1]))
             self.out.fillBranch("deltaR_j1j2", deltaR(fatjets[0], fatjets[1]))
             self.out.fillBranch("ptj2_over_ptj1", fatjets[1].pt/fatjets[0].pt)
+
             mj2overmj1 = -1 if fatjets[0].regressed_massJMS<=0 else fatjets[1].regressed_massJMS/fatjets[0].regressed_massJMS
             self.out.fillBranch("mj2_over_mj1", mj2overmj1)
+            mj2overmj1_reg = -1 if fatjets[0].msoftdropJMS<=0 else fatjets[1].msoftdropJMS/fatjets[0].msoftdropJMS
+            self.out.fillBranch("mj2_over_mj1_MassRegressed", mj2overmj1_reg)
 
             if self.isMC:
-                h1Jet_JMS_Down = polarP4(fatjets[0],mass='regressed_mass_JMS_Down')
-                h2Jet_JMS_Down = polarP4(fatjets[1],mass='regressed_mass_JMS_Down')
-                h1Jet_JMS_Up = polarP4(fatjets[0],mass='regressed_mass_JMS_Up')
-                h2Jet_JMS_Up = polarP4(fatjets[1],mass='regressed_mass_JMS_Up')
+                h1Jet_JMS_Down = polarP4(fatjets[0],mass='msoftdrop_JMS_Down')
+                h2Jet_JMS_Down = polarP4(fatjets[1],mass='msoftdrop_JMS_Down')
+                h1Jet_JMS_Up = polarP4(fatjets[0],mass='msoftdrop_JMS_Up')
+                h2Jet_JMS_Up = polarP4(fatjets[1],mass='msoftdrop_JMS_Up')
 
-                h1Jet_JMR_Down = polarP4(fatjets[0],mass='regressed_mass_JMR_Down')
-                h2Jet_JMR_Down = polarP4(fatjets[1],mass='regressed_mass_JMR_Down')
-                h1Jet_JMR_Up = polarP4(fatjets[0],mass='regressed_mass_JMR_Up')
-                h2Jet_JMR_Up = polarP4(fatjets[1],mass='regressed_mass_JMR_Up')
+                h1Jet_JMR_Down = polarP4(fatjets[0],mass='msoftdrop_JMR_Down')
+                h2Jet_JMR_Down = polarP4(fatjets[1],mass='msoftdrop_JMR_Down')
+                h1Jet_JMR_Up = polarP4(fatjets[0],mass='msoftdrop_JMR_Up')
+                h2Jet_JMR_Up = polarP4(fatjets[1],mass='msoftdrop_JMR_Up')
     
                 self.out.fillBranch("hh_pt_JMS_Down", (h1Jet_JMS_Down+h2Jet_JMS_Down).Pt())
                 self.out.fillBranch("hh_eta_JMS_Down", (h1Jet_JMS_Down+h2Jet_JMS_Down).Eta())
@@ -796,6 +837,31 @@ class hh4bProducer(Module):
                 self.out.fillBranch("hh_pt_JMR_Up", (h1Jet_JMR_Up+h2Jet_JMR_Up).Pt())
                 self.out.fillBranch("hh_eta_JMR_Up", (h1Jet_JMR_Up+h2Jet_JMR_Up).Eta())
                 self.out.fillBranch("hh_mass_JMR_Up", (h1Jet_JMR_Up+h2Jet_JMR_Up).M())
+
+                h1Jet_reg_JMS_Down = polarP4(fatjets[0],mass='regressed_mass_JMS_Down')
+                h2Jet_reg_JMS_Down = polarP4(fatjets[1],mass='regressed_mass_JMS_Down')
+                h1Jet_reg_JMS_Up = polarP4(fatjets[0],mass='regressed_mass_JMS_Up')
+                h2Jet_reg_JMS_Up = polarP4(fatjets[1],mass='regressed_mass_JMS_Up')
+
+                h1Jet_reg_JMR_Down = polarP4(fatjets[0],mass='regressed_mass_JMR_Down')
+                h2Jet_reg_JMR_Down = polarP4(fatjets[1],mass='regressed_mass_JMR_Down')
+                h1Jet_reg_JMR_Up = polarP4(fatjets[0],mass='regressed_mass_JMR_Up')
+                h2Jet_reg_JMR_Up = polarP4(fatjets[1],mass='regressed_mass_JMR_Up')
+                
+                self.out.fillBranch("hh_pt_MassRegressed_JMS_Down", (h1Jet_reg_JMS_Down+h2Jet_reg_JMS_Down).Pt())
+                self.out.fillBranch("hh_eta_MassRegressed_JMS_Down", (h1Jet_reg_JMS_Down+h2Jet_reg_JMS_Down).Eta())
+                self.out.fillBranch("hh_mass_MassRegressed_JMS_Down", (h1Jet_reg_JMS_Down+h2Jet_reg_JMS_Down).M())
+                self.out.fillBranch("hh_pt_MassRegressed_JMS_Up", (h1Jet_reg_JMS_Up+h2Jet_reg_JMS_Up).Pt())
+                self.out.fillBranch("hh_eta_MassRegressed_JMS_Up", (h1Jet_reg_JMS_Up+h2Jet_reg_JMS_Up).Eta())
+                self.out.fillBranch("hh_mass_MassRegressed_JMS_Up", (h1Jet_reg_JMS_Up+h2Jet_reg_JMS_Up).M())
+
+                self.out.fillBranch("hh_pt_MassRegressed_JMR_Down", (h1Jet_reg_JMR_Down+h2Jet_reg_JMR_Down).Pt())
+                self.out.fillBranch("hh_eta_MassRegressed_JMR_Down", (h1Jet_reg_JMR_Down+h2Jet_reg_JMR_Down).Eta())
+                self.out.fillBranch("hh_mass_MassRegressed_JMR_Down", (h1Jet_reg_JMR_Down+h2Jet_reg_JMR_Down).M())
+                self.out.fillBranch("hh_pt_MassRegressed_JMR_Up", (h1Jet_reg_JMR_Up+h2Jet_reg_JMR_Up).Pt())
+                self.out.fillBranch("hh_eta_MassRegressed_JMR_Up", (h1Jet_reg_JMR_Up+h2Jet_reg_JMR_Up).Eta())
+                self.out.fillBranch("hh_mass_MassRegressed_JMR_Up", (h1Jet_reg_JMR_Up+h2Jet_reg_JMR_Up).M())
+
         else:
             self.out.fillBranch("hh_pt", 0)
             self.out.fillBranch("hh_eta", 0)
@@ -819,6 +885,19 @@ class hh4bProducer(Module):
                 self.out.fillBranch("hh_pt_JMR_Up", 0)
                 self.out.fillBranch("hh_eta_JMR_Up",0)
                 self.out.fillBranch("hh_mass_JMR_Up",0)
+
+                self.out.fillBranch("hh_pt_MassRegressed_JMS_Down",0)
+                self.out.fillBranch("hh_eta_MassRegressed_JMS_Down",0)
+                self.out.fillBranch("hh_mass_MassRegressed_JMS_Down",0)
+                self.out.fillBranch("hh_pt_MassRegressed_JMS_Up", 0)
+                self.out.fillBranch("hh_eta_MassRegressed_JMS_Up",0)
+                self.out.fillBranch("hh_mass_MassRegressed_JMS_Up",0)
+                self.out.fillBranch("hh_pt_MassRegressed_JMR_Down",0)
+                self.out.fillBranch("hh_eta_MassRegressed_JMR_Down",0)
+                self.out.fillBranch("hh_mass_MassRegressed_JMR_Down",0)
+                self.out.fillBranch("hh_pt_MassRegressed_JMR_Up", 0)
+                self.out.fillBranch("hh_eta_MassRegressed_JMR_Up",0)
+                self.out.fillBranch("hh_mass_MassRegressed_JMR_Up",0)
 
         for idx in ([1, 2]):
             prefix = 'fatJet%i' % idx
@@ -889,9 +968,12 @@ class hh4bProducer(Module):
                 ptovermsd = -1 if fj.msoftdropJMS<=0 else fj.pt/fj.msoftdropJMS
                 ptovermregressed = -1 if fj.regressed_massJMS<=0 else fj.pt/fj.regressed_massJMS
                 fill_fj(prefix + "PtOverMHH", fj.pt/(h1Jet+h2Jet).M())
+                fill_fj(prefix + "PtOverMHH_MassRegressed", fj.pt/(h1Jet_reg+h2Jet_reg).M())
+            else:
+                fill_fj(prefix + "PtOverMHH", -1)
+                fill_fj(prefix + "PtOverMHH_MassRegressed", -1)
             fill_fj(prefix + "PtOverMSD", ptovermsd)
             fill_fj(prefix + "PtOverMRegressed", ptovermregressed)
-            fill_fj(prefix + "PtOverMHH", -1)
 
             if self.isMC:
                 if len(fatjets)>1 and fj:
@@ -899,6 +981,11 @@ class hh4bProducer(Module):
                     fill_fj(prefix + "PtOverMHH_JMS_Up", fj.pt/(h1Jet_JMS_Up+h2Jet_JMS_Up).M())
                     fill_fj(prefix + "PtOverMHH_JMR_Down", fj.pt/(h1Jet_JMR_Down+h2Jet_JMR_Down).M())
                     fill_fj(prefix + "PtOverMHH_JMR_Up", fj.pt/(h1Jet_JMR_Up+h2Jet_JMR_Up).M())
+
+                    fill_fj(prefix + "PtOverMHH_MassRegressed_JMS_Down", fj.pt/(h1Jet_reg_JMS_Down+h2Jet_reg_JMS_Down).M())
+                    fill_fj(prefix + "PtOverMHH_MassRegressed_JMS_Up", fj.pt/(h1Jet_reg_JMS_Up+h2Jet_reg_JMS_Up).M())
+                    fill_fj(prefix + "PtOverMHH_MassRegressed_JMR_Down", fj.pt/(h1Jet_reg_JMR_Down+h2Jet_reg_JMR_Down).M())
+                    fill_fj(prefix + "PtOverMHH_MassRegressed_JMR_Up", fj.pt/(h1Jet_reg_JMR_Up+h2Jet_reg_JMR_Up).M())
                 else:
                     fill_fj(prefix + "PtOverMHH_JMS_Down",0)
                     fill_fj(prefix + "PtOverMHH_JMS_Up", 0)
