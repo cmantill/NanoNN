@@ -190,12 +190,13 @@ class ParticleNetJetTagsProducer(object):
 
     def predict_with_cache(self, taginfo_producer, event_idx, jet_idx, jet=None, is_pfarr=True, is_masklow=False):
         outputs = None
+        self._cache_df = None # tmp!
         if self._cache_df is not None:
             outputs = self._cache_dict.get((event_idx, jet_idx))
         if outputs is None:
             taginfo = taginfo_producer.load(event_idx,False,is_pfarr,is_masklow)
             outputs = self.predict_one(taginfo, int(event_idx - taginfo_producer._uproot_start), jet_idx, jet=jet)
-            self._cache_list.append({'event': event_idx, 'jetidx': jet_idx, **outputs})
+            #self._cache_list.append({'event': event_idx, 'jetidx': jet_idx, **outputs})
         return outputs
 
 if __name__ == '__main__':
