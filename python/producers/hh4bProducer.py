@@ -175,7 +175,9 @@ class hh4bProducer(Module):
             #                          #'METUnUp': JetMETCorrector(year=self.year, jetType="AK4PFchs", met_unclustered='up'),
             #                          #'METUnDown': JetMETCorrector(year=self.year, jetType="AK4PFchs", met_unclustered='down'),
             # }
+            # hemunc for 2018 only
             self.fatjetCorrectors = {'nominal': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jer='nominal', applyHEMUnc=self.applyHEMUnc),
+                                     #'HEMDown': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jer='nominal', applyHEMUnc=True),
                                      'JERUp': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jer='up'),
                                      'JERDown': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jer='down'),
                                      'JESUp': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes='up'),
@@ -196,6 +198,7 @@ class hh4bProducer(Module):
         # selection
         if self._opts['option']=="5": print('Select Events with FatJet1 pT > 200 GeV and PNetXbb > 0.8 only')
         elif self._opts['option']=="10": print('Select FatJets with pT > 200 GeV and tau3/tau2 < 0.54 only')
+        elif self._opts['option']=="21": print('Select FatJets with pT > 250 GeV and mass > 30 only')
         else: print('No selection')
 
         # trigger Efficiency
@@ -261,6 +264,7 @@ class hh4bProducer(Module):
             self.out.branch(prefix + "MassRegressed", "F")
             self.out.branch(prefix + "MassRegressed_UnCorrected", "F")
             self.out.branch(prefix + "PNetXbb", "F")
+            self.out.branch(prefix + "PNetXjj", "F")
             self.out.branch(prefix + "PNetQCDb", "F")
             self.out.branch(prefix + "PNetQCDbb", "F")
             self.out.branch(prefix + "PNetQCDc", "F")
@@ -584,6 +588,7 @@ class hh4bProducer(Module):
                         fj.idx = idx
                         fj.is_qualified = True
                         fj.Xbb = (fj.ParticleNetMD_probXbb/(1. - fj.ParticleNetMD_probXcc - fj.ParticleNetMD_probXqq))
+                        fj.Xqq = ((fj.ParticleNetMD_probXbb + fj.ParticleNetMD_probXcc + fj.ParticleNetMD_probXqq)/(fj.ParticleNetMD_probXbb + fj.ParticleNetMD_probXcc + fj.ParticleNetMD_probXqq + fj.ParticleNetMD_probQCDb + fj.ParticleNetMD_probQCDbb + fj.ParticleNetMD_probQCDc + fj.ParticleNetMD_probQCDcc + fj.ParticleNetMD_probQCDothers))
                         fj.t32 = (fj.tau3/fj.tau2) if fj.tau2 > 0 else -1
                         fj.msoftdropJMS = fj.msoftdrop*self._jmsValues[0]
 
@@ -593,6 +598,7 @@ class hh4bProducer(Module):
             fj.is_qualified = True
             fj.subjets = get_subjets(fj, event.subjets, ('subJetIdx1', 'subJetIdx2'))
             fj.Xbb = (fj.ParticleNetMD_probXbb/(1. - fj.ParticleNetMD_probXcc - fj.ParticleNetMD_probXqq))
+            fj.Xqq = ((fj.ParticleNetMD_probXbb + fj.ParticleNetMD_probXcc + fj.ParticleNetMD_probXqq)/(fj.ParticleNetMD_probXbb + fj.ParticleNetMD_probXcc + fj.ParticleNetMD_probXqq + fj.ParticleNetMD_probQCDb + fj.ParticleNetMD_probQCDbb + fj.ParticleNetMD_probQCDc + fj.ParticleNetMD_probQCDcc + fj.ParticleNetMD_probQCDothers))
             fj.t32 = (fj.tau3/fj.tau2) if fj.tau2 > 0 else -1
             if self.isMC:
                 fj.msoftdropJMS = fj.msoftdrop*self._jmsValues[0]
@@ -910,6 +916,7 @@ class hh4bProducer(Module):
             fill_fj(prefix + "MassRegressed_UnCorrected", fj.regressed_mass)
             fill_fj(prefix + "MassSD_UnCorrected", fj.msoftdrop)
             fill_fj(prefix + "PNetXbb", fj.Xbb)
+            fill_fj(prefix + "PNetXqq", fj.Xqq)
             fill_fj(prefix + "PNetQCDb", fj.ParticleNetMD_probQCDb)
             fill_fj(prefix + "PNetQCDbb", fj.ParticleNetMD_probQCDbb)
             fill_fj(prefix + "PNetQCDc", fj.ParticleNetMD_probQCDc)
@@ -967,8 +974,16 @@ class hh4bProducer(Module):
             if fj:
                 ptovermsd = -1 if fj.msoftdropJMS<=0 else fj.pt/fj.msoftdropJMS
                 ptovermregressed = -1 if fj.regressed_massJMS<=0 else fj.pt/fj.regressed_massJMS
-                fill_fj(prefix + "PtOverMHH", fj.pt/(h1Jet+h2Jet).M())
-                fill_fj(prefix + "PtOverMHH_MassRegressed", fj.pt/(h1Jet_reg+h2Jet_reg).M())
+                if (h1Jet+h2Jet).M()>0:
+                    fill_fj(prefix + "PtOverMHH", fj.pt/(h1Jet+h2Jet).M())
+                else:
+                    print('hh mass 0?',(h1Jet+h2Jet).M())
+                    fill_fj(prefix + "PtOverMHH", -1)
+                if (h1Jet_reg+h2Jet_reg).M()>0:
+                    fill_fj(prefix + "PtOverMHH_MassRegressed", fj.pt/(h1Jet_reg+h2Jet_reg).M())
+                else:
+                    print('hh reg mass 0?',(h1Jet_reg+h2Jet_reg).M())
+                    fill_fj(prefix + "PtOverMHH_MassRegressed", -1)
             else:
                 fill_fj(prefix + "PtOverMHH", -1)
                 fill_fj(prefix + "PtOverMHH_MassRegressed", -1)
@@ -1093,6 +1108,10 @@ class hh4bProducer(Module):
             probe_jets = [fj for fj in event.fatjets if (fj.pt > 200 and fj.t32<0.54)]
             if len(probe_jets) < 1:
                 return False
+        elif self._opts['option'] == "21":
+            probe_jets = [fj for fj in event.vbffatjets if fj.pt > 200]
+            if len(probe_jets) < 1:
+                return False
         else:
             if len(probe_jets) < 2:
                 return False
@@ -1108,6 +1127,8 @@ class hh4bProducer(Module):
             if len(probe_jets) >= 2:
                 if(probe_jets[0].pt > 250 and probe_jets[1].pt > 250): passSel = True
             if(probe_jets[0].pt > 250 and len(event.looseLeptons)>0): passSel = True
+        elif self._opts['option'] == "21":
+            if(probe_jets[0].pt > 250 and (probe_jets[0].msoftdropJMS >30 || probe_jets[0].regressed_massJMS > 30)): passSel=True
         if not passSel: return False
 
         # load gen history
