@@ -588,7 +588,12 @@ class hh4bProducer(Module):
                         fj.idx = idx
                         fj.is_qualified = True
                         fj.Xbb = (fj.ParticleNetMD_probXbb/(1. - fj.ParticleNetMD_probXcc - fj.ParticleNetMD_probXqq))
-                        fj.Xqq = ((fj.ParticleNetMD_probXbb + fj.ParticleNetMD_probXcc + fj.ParticleNetMD_probXqq)/(fj.ParticleNetMD_probXbb + fj.ParticleNetMD_probXcc + fj.ParticleNetMD_probXqq + fj.ParticleNetMD_probQCDb + fj.ParticleNetMD_probQCDbb + fj.ParticleNetMD_probQCDc + fj.ParticleNetMD_probQCDcc + fj.ParticleNetMD_probQCDothers))
+                        den = fj.ParticleNetMD_probXbb + fj.ParticleNetMD_probXcc + fj.ParticleNetMD_probXqq + fj.ParticleNetMD_probQCDb + fj.ParticleNetMD_probQCDbb + fj.ParticleNetMD_probQCDc + fj.ParticleNetMD_probQCDcc + fj.ParticleNetMD_probQCDothers
+                        num = fj.ParticleNetMD_probXbb + fj.ParticleNetMD_probXcc + fj.ParticleNetMD_probXqq
+                        if den>0:
+                            fj.Xjj = num/den
+                        else:
+                            fj.Xjj = -1
                         fj.t32 = (fj.tau3/fj.tau2) if fj.tau2 > 0 else -1
                         fj.msoftdropJMS = fj.msoftdrop*self._jmsValues[0]
 
@@ -598,7 +603,12 @@ class hh4bProducer(Module):
             fj.is_qualified = True
             fj.subjets = get_subjets(fj, event.subjets, ('subJetIdx1', 'subJetIdx2'))
             fj.Xbb = (fj.ParticleNetMD_probXbb/(1. - fj.ParticleNetMD_probXcc - fj.ParticleNetMD_probXqq))
-            fj.Xqq = ((fj.ParticleNetMD_probXbb + fj.ParticleNetMD_probXcc + fj.ParticleNetMD_probXqq)/(fj.ParticleNetMD_probXbb + fj.ParticleNetMD_probXcc + fj.ParticleNetMD_probXqq + fj.ParticleNetMD_probQCDb + fj.ParticleNetMD_probQCDbb + fj.ParticleNetMD_probQCDc + fj.ParticleNetMD_probQCDcc + fj.ParticleNetMD_probQCDothers))
+            den = fj.ParticleNetMD_probXbb + fj.ParticleNetMD_probXcc + fj.ParticleNetMD_probXqq + fj.ParticleNetMD_probQCDb + fj.ParticleNetMD_probQCDbb + fj.ParticleNetMD_probQCDc + fj.ParticleNetMD_probQCDcc + fj.ParticleNetMD_probQCDothers
+            num = fj.ParticleNetMD_probXbb + fj.ParticleNetMD_probXcc + fj.ParticleNetMD_probXqq
+            if den>0:
+                fj.Xjj = num/den
+            else:
+                fj.Xjj = -1
             fj.t32 = (fj.tau3/fj.tau2) if fj.tau2 > 0 else -1
             if self.isMC:
                 fj.msoftdropJMS = fj.msoftdrop*self._jmsValues[0]
@@ -916,7 +926,7 @@ class hh4bProducer(Module):
             fill_fj(prefix + "MassRegressed_UnCorrected", fj.regressed_mass)
             fill_fj(prefix + "MassSD_UnCorrected", fj.msoftdrop)
             fill_fj(prefix + "PNetXbb", fj.Xbb)
-            fill_fj(prefix + "PNetXqq", fj.Xqq)
+            fill_fj(prefix + "PNetXjj", fj.Xjj)
             fill_fj(prefix + "PNetQCDb", fj.ParticleNetMD_probQCDb)
             fill_fj(prefix + "PNetQCDbb", fj.ParticleNetMD_probQCDbb)
             fill_fj(prefix + "PNetQCDc", fj.ParticleNetMD_probQCDc)
@@ -1128,7 +1138,7 @@ class hh4bProducer(Module):
                 if(probe_jets[0].pt > 250 and probe_jets[1].pt > 250): passSel = True
             if(probe_jets[0].pt > 250 and len(event.looseLeptons)>0): passSel = True
         elif self._opts['option'] == "21":
-            if(probe_jets[0].pt > 250 and (probe_jets[0].msoftdropJMS >30 || probe_jets[0].regressed_massJMS > 30)): passSel=True
+            if(probe_jets[0].pt > 250 and (probe_jets[0].msoftdropJMS >30 or probe_jets[0].regressed_massJMS > 30)): passSel=True
         if not passSel: return False
 
         # load gen history
