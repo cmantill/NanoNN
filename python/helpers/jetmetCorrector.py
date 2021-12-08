@@ -11,7 +11,7 @@ from .utils import polarP4, p4, configLogger
 from .jetSmearingHelper import jetSmearer, find_and_extract_tarball
 
 logger = logging.getLogger('jme')
-configLogger('jme', loglevel=logging.INFO)
+configLogger('jme', loglevel=logging.DEBUG)
 
 
 def rndSeed(event, jets, extra=0):
@@ -40,7 +40,7 @@ class JetCorrector(object):
         if applyResidual:
             self.jecLevels += ['L2L3Residual']
         self.vPar = ROOT.vector(ROOT.JetCorrectorParameters)()
-        logger.info('Init JetCorrector: %s, %s, %s', globalTag, jetType, str(self.jecLevels))
+        #logger.info('Init JetCorrector: %s, %s, %s', globalTag, jetType, str(self.jecLevels))
         for level in self.jecLevels:
             self.vPar.push_back(ROOT.JetCorrectorParameters(os.path.join(
                 jecPath, "%s_%s_%s.txt" % (globalTag, level, jetType)), ""))
@@ -184,7 +184,6 @@ class JetMETCorrector(object):
             else:
                 # unc. by source
                 self.jesUncertaintyInputFileName = self.jes_uncertainty_file_prefix + self.globalTag + "_UncertaintySources_" + self.jetType + ".txt"
-
             pars = ROOT.JetCorrectorParameters(
                 os.path.join(self.jesInputFilePath, self.jesUncertaintyInputFileName),
                 self.jes_source)

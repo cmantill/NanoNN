@@ -167,21 +167,80 @@ class hh4bProducer(Module):
         if self._allJME:
             # self.applyHEMUnc = False
             self.applyHEMUnc = self._jmeSysts['applyHEMUnc']
-            # self.jetmetCorrectors = {'nominal': JetMETCorrector(year=self.year, jetType="AK4PFchs", jer='nominal', applyHEMUnc=self.applyHEMUnc),
-            #                          'JERUp': JetMETCorrector(year=self.year, jetType="AK4PFchs", jer='up'),
-            #                          'JERDown': JetMETCorrector(year=self.year, jetType="AK4PFchs", jer='down'),
-            #                          'JESUp': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes='up'),
-            #                          #'JESDown': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes='down'),
-            #                          #'METUnUp': JetMETCorrector(year=self.year, jetType="AK4PFchs", met_unclustered='up'),
-            #                          #'METUnDown': JetMETCorrector(year=self.year, jetType="AK4PFchs", met_unclustered='down'),
-            # }
+            year_pf = "_%i"%self.year
+            self.jetmetCorrectors = {
+                'nominal': JetMETCorrector(year=self.year, jetType="AK4PFchs", jer='nominal', applyHEMUnc=self.applyHEMUnc),
+                'JERUp': JetMETCorrector(year=self.year, jetType="AK4PFchs", jer='up'),
+                'JERDown': JetMETCorrector(year=self.year, jetType="AK4PFchs", jer='down'),
+                'JESUp': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes='up'),
+                'JESDown': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes='down'),
+                
+                'JESUp_Abs': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='Absolute', jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_Abs': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='Absolute', jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESUp_Abs'+year_pf: JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='Absolute'+year_pf, jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDowb_Abs'+year_pf:JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='Absolute'+year_pf,jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+                
+                'JESUp_BBEC1': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='BBEC1', jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_BBEC1': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='BBEC1', jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESUp_BBEC1'+year_pf: JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='BBEC1'+year_pf, jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_BBEC1'+year_pf: JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='BBEC1'+year_pf, jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+                
+                'JESUp_EC2': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='EC2', jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_EC2': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='EC2', jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESUp_EC2'+year_pf: JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='EC2'+year_pf, jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_EC2'+year_pf: JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='EC2'+year_pf, jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+
+                'JESUp_FlavQCD': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='FlavorQCD', jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_FlavQCD': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='FlavorQCD', jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+
+                'JESUp_HF': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='HF', jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_HF': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='HF', jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESUp_HF'+year_pf: JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='HF'+year_pf, jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_HF'+year_pf: JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='HF'+year_pf, jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+
+                'JESUp_RelBal': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='RelativeBal', jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_RelBal': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='RelativeBal', jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+
+                'JESUp_RelSample'+year_pf: JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='RelativeSample'+year_pf, jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_RelSample'+year_pf: JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='RelativeSample'+year_pf, jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+            }
             # hemunc for 2018 only
-            self.fatjetCorrectors = {'nominal': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jer='nominal', applyHEMUnc=self.applyHEMUnc),
-                                     #'HEMDown': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jer='nominal', applyHEMUnc=True),
-                                     'JERUp': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jer='up'),
-                                     'JERDown': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jer='down'),
-                                     'JESUp': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes='up'),
-                                     'JESDown': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes='down')
+            self.fatjetCorrectors = {
+                'nominal': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jer='nominal', applyHEMUnc=self.applyHEMUnc),
+                #'HEMDown': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jer='nominal', applyHEMUnc=True),
+                'JERUp': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jer='up'),
+                'JERDown': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jer='down'),
+                'JESUp': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes='up'),
+                'JESDown': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes='down'),
+
+                'JESUp_Abs': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='Absolute', jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_Abs': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='Absolute', jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESUp_Abs'+year_pf: JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='Absolute'+year_pf, jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDowb_Abs'+year_pf:JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='Absolute'+year_pf,jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+
+                'JESUp_BBEC1': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='BBEC1', jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_BBEC1': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='BBEC1', jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESUp_BBEC1'+year_pf: JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='BBEC1'+year_pf, jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_BBEC1'+year_pf: JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='BBEC1'+year_pf, jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+
+                'JESUp_EC2': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='EC2', jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_EC2': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='EC2', jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESUp_EC2'+year_pf: JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='EC2'+year_pf, jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_EC2'+year_pf: JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='EC2'+year_pf, jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+
+                'JESUp_FlavQCD': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='FlavorQCD', jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_FlavQCD': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='FlavorQCD', jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+
+                'JESUp_HF': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='HF', jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_HF': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='HF', jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESUp_HF'+year_pf: JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='HF'+year_pf, jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_HF'+year_pf: JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='HF'+year_pf, jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+
+                'JESUp_RelBal': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='RelativeBal', jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_RelBal': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='RelativeBal', jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+
+                'JESUp_RelSample'+year_pf: JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='RelativeSample'+year_pf, jes='up', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_RelSample'+year_pf: JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='RelativeSample'+year_pf, jes='down', jes_uncertainty_file_prefix="Regrouped_"),
             }
             self._jmeLabels = self.fatjetCorrectors.keys()
         else:
@@ -211,8 +270,10 @@ class hh4bProducer(Module):
             self.subjetCorr.beginJob()
             
         if self._allJME:
+            for key,corr in self.jetmetCorrectors.items():
+                self.jetmetCorrectors[key].beginJob()
+
             for key,corr in self.fatjetCorrectors.items():
-                #self.jetmetCorrectors[key].beginJob()
                 self.fatjetCorrectors[key].beginJob()
 
         # for bdt
@@ -371,7 +432,13 @@ class hh4bProducer(Module):
         # for phase-space overlap removal with VBFHH->4b boosted analysis
         # small jets
         self.out.branch("isVBFtag", "I")
+        if self._allJME:
+            for syst in self._jmeLabels:
+                if syst == 'nominal': continue
+                self.out.branch("isVBFtag" + "_" + syst, "F")
+
         self.out.branch("dijetmass", "F")
+
         for idx in ([1, 2]):
             prefix = 'vbfjet%i'%idx
             self.out.branch(prefix + "Pt", "F")
@@ -570,6 +637,7 @@ class hh4bProducer(Module):
         # all JetMET corrections
         if self._allJME:
             rho = event.fixedGridRhoFastjetAll
+            event._AllJets = {}
             event._FatJets = {}
             extra=0
             for key,corr in self.fatjetCorrectors.items():          
@@ -596,6 +664,26 @@ class hh4bProducer(Module):
                             fj.Xjj = -1
                         fj.t32 = (fj.tau3/fj.tau2) if fj.tau2 > 0 else -1
                         fj.msoftdropJMS = fj.msoftdrop*self._jmsValues[0]
+
+            for key,corr in self.jetmetCorrectors.items():
+                rho = event.fixedGridRhoFastjetAll
+                if key=='nominal':
+                    corr.setSeed(rndSeed(event, event._allJets))
+                    corr.correctJetAndMET(jets=event._allJets, lowPtJets=Collection(event, "CorrT1METJet"),
+                                          met=event.met, rawMET=METObject(event, "RawMET"),
+                                          defaultMET=METObject(event, "MET"),
+                                          rho=rho, genjets=Collection(event, 'GenJet') if self.isMC else None,
+                                          isMC=self.isMC, runNumber=event.run)
+                    event._allJets = sorted(event._allJets, key=lambda x: x.pt, reverse=True)
+                else:
+                    event._AllJets[key] = Collection(event, "Jet")
+                    corr.setSeed(rndSeed(event, event._AllJets[key], extra))
+                    corr.correctJetAndMET(jets=event._AllJets[key], lowPtJets=Collection(event, "CorrT1METJet"),
+                                          met=event.met, rawMET=METObject(event, "RawMET"),
+                                          defaultMET=METObject(event, "MET"),
+                                          rho=rho, genjets=Collection(event, 'GenJet') if self.isMC else None,
+                                          isMC=self.isMC, runNumber=event.run)
+                    event._AllJets[key] = sorted(event._AllJets[key], key=lambda x: x.pt, reverse=True)
 
         # link fatjet to subjets 
         for idx, fj in enumerate(event._allFatJets):
@@ -670,11 +758,19 @@ class hh4bProducer(Module):
         # sort and select variations of jets
         if self._allJME:
             event.fatjetsJME = {}
+            event.vbfak4jetsJME = {}
             for syst in self._jmeLabels:
                 if syst == 'nominal': continue
+                ptordered = sorted(event._FatJets[syst], key=lambda x: x.pt, reverse=True)
                 xbbordered = sorted(event._FatJets[syst], key=lambda x: x.Xbb, reverse = True) 
                 event.fatjetsJME[syst] = [fj for fj in xbbordered if fj.pt > 200 and abs(fj.eta) < 2.4 and (fj.jetId & 2)]
  
+                vbffatjets_syst = [fj for fj in ptordered if fj.pt > 200 and abs(fj.eta) < 2.4 and (fj.jetId & 2) and closest(fj, event.looseLeptons)[1] >= 0.8]
+                vbfjetid = 3 if self.year == 2017 else 2
+                event.vbfak4jetsJME[syst] = [j for j in event._AllJets[syst] if j.pt > 25 and abs(j.eta) < 4.7 and (j.jetId >= vbfjetid) \
+                                             and ( (j.pt < 50 and j.puId>=6) or (j.pt > 50) ) and closest(j, vbffatjets_syst)[1] > 1.2 \
+                                             and closest(j, event.vbfLeptons)[1] >= 0.4]
+                
     def evalMassRegression(self, event, jets):
         for i,j in enumerate(jets):
             if self._opts['run_mass_regression']:
@@ -987,12 +1083,12 @@ class hh4bProducer(Module):
                 if (h1Jet+h2Jet).M()>0:
                     fill_fj(prefix + "PtOverMHH", fj.pt/(h1Jet+h2Jet).M())
                 else:
-                    print('hh mass 0?',(h1Jet+h2Jet).M())
+                    # print('hh mass 0?',(h1Jet+h2Jet).M())
                     fill_fj(prefix + "PtOverMHH", -1)
                 if (h1Jet_reg+h2Jet_reg).M()>0:
                     fill_fj(prefix + "PtOverMHH_MassRegressed", fj.pt/(h1Jet_reg+h2Jet_reg).M())
                 else:
-                    print('hh reg mass 0?',(h1Jet_reg+h2Jet_reg).M())
+                    # print('hh reg mass 0?',(h1Jet_reg+h2Jet_reg).M())
                     fill_fj(prefix + "PtOverMHH_MassRegressed", -1)
             else:
                 fill_fj(prefix + "PtOverMHH", -1)
@@ -1089,6 +1185,18 @@ class hh4bProducer(Module):
         else:
             self.out.fillBranch('dijetmass', 0)
         self.out.fillBranch('isVBFtag', isVBFtag)
+
+    def fillVBFJetInfoJME(self, event, jets):
+        if not self._allJME or not self.isMC: return
+        for syst in self._jmeLabels:
+            if syst == 'nominal': continue
+            isVBFtag = 0
+            if len(event.vbfak4jetsJME[syst])>1 and len(jets)>1:
+                Jet1 = polarP4(jets[0])
+                Jet2 = polarP4(jets[1])
+                isVBFtag = 0
+                if((Jet1+Jet2).M() > 500. and abs(Jet1.Eta() - Jet2.Eta()) > 4): isVBFtag = 1
+            self.out.fillBranch('isVBFtag' + "_" + syst, isVBFtag)
             
     def fillLeptonInfo(self, event, leptons):
         for idx in ([1, 2]):
@@ -1152,6 +1260,7 @@ class hh4bProducer(Module):
         self.fillJetInfo(event, event.bmjets)
         self.fillVBFFatJetInfo(event, event.vbffatjets)
         self.fillVBFJetInfo(event, event.vbfak4jets)
+        self.fillVBFJetInfoJME(event, event.vbfak4jets)
         self.fillLeptonInfo(event, event.looseLeptons)
         
         # for all jme systs

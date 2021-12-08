@@ -9,7 +9,9 @@ from collections import Counter
 import itertools 
 
 class ParticleNetTagInfoMaker(object):
-     def __init__(self, fatjet_branch='FatJet', pfcand_branch='PFCands', sv_branch='SV', fatpfcand_branch=None, jetR=0.8, extras=False):
+     def __init__(self, fatjet_branch='FatJet', pfcand_branch='PFCands', sv_branch='SV', fatpfcand_branch=None, jetR=0.8, 
+                  pfcand_counts_branch = "_pFCandsIdx",
+                  extras=False):
           self.fatjet_branch = fatjet_branch
           self.pfcand_branch = pfcand_branch
           self.fatjetpf_branch = fatpfcand_branch
@@ -17,10 +19,9 @@ class ParticleNetTagInfoMaker(object):
           self.jet_r2 = jetR * jetR
           self.idx_branch = '{jet}To{cand}_candIdx'.format(jet=fatjet_branch, cand=pfcand_branch)
           if fatpfcand_branch:
-               if 'AK15' in self.fatjet_branch:
-                    self.idx_branch_pfnano = self.fatjetpf_branch + '_candIdx'
-               else:
-                    self.idx_branch_pfnano = self.fatjetpf_branch + '_pFCandsIdx'
+               self.idx_branch_pfnano = self.fatjetpf_branch + pfcand_counts_branch
+          else:
+               self.idx_branch_pfnano = None
           self.extras = extras
 
      def _finalize_data(self, data):
@@ -93,6 +94,8 @@ class ParticleNetTagInfoMaker(object):
           data['pfcand_phirel'] = candp4.delta_phi(self.jetp4)
           data['pfcand_etarel'] = self.eta_sign * (candp4.eta - self.jetp4.eta)
           data['pfcand_abseta'] = np.abs(candp4.eta)
+          data['pfcand_eta'] = candp4.eta
+          data['pfcand_phi'] = candp4.phi
 
           data['pfcand_pt_log_nopuppi'] = np.log(candp4.pt)
           data['pfcand_e_log_nopuppi'] = np.log(candp4.energy)
@@ -177,7 +180,6 @@ class ParticleNetTagInfoMaker(object):
                deepTag['probQCD'] = self._get_array(table, self.fatjet_branch + '_deepTag_QCD')
                deepTag['probQCDothers'] = self._get_array(table, self.fatjet_branch + '_deepTag_QCDothers')
                data['_jet_deepTagHvsQCD'] = convert_prob(deepTag, ['H'], prefix='prob', bkgs=['QCD','QCDothers'])
-
                self._finalize_data(data)
 
           data['_isHiggs'] = np.any(np.abs(self._get_array(table,'GenPart_pdgId')==25)[0]).astype('int')
@@ -240,7 +242,10 @@ class ParticleNetTagInfoMaker(object):
                          if 'FatJet_' in branch:
                               arr_toread[i] = arr_toread[i].replace('FatJet','FatJetAK15')
                          if branch == "*FatJetPFCands*":
-                              arr_toread[i] = "*JetPFCandsAK15*"
+                              if self.fatjetpf_branch == "FatJetAK15PFCands":
+                                   arr_toread[i] = "FatJetAK15PFCands*"
+                              else:
+                                   arr_toread[i] = "*JetPFCandsAK15*"
                     arr_toread += ['FatJetAK15_ParticleNet*']
                else:
                     arr_toread += ['FatJet_deepTag_H','FatJet_deepTag_QCD','FatJet_deepTag_QCDothers']

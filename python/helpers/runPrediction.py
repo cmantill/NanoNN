@@ -74,7 +74,7 @@ class ParticleNetJetTagsProducer(object):
         with open(preprocess_path) as fp:
             self.prep_params = json.load(fp)
         if model_path:
-            logger.info('Loading model %s' % model_path) 
+            #logger.info('Loading model %s' % model_path) 
             self.sess = onnxruntime.InferenceSession(model_path)
             self.ver = version
             self.cache_suffix = cache_suffix
