@@ -178,7 +178,7 @@ class hh4bProducer(Module):
                 'JESUp_Abs': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='Absolute', jes='up', jes_uncertainty_file_prefix="Regrouped_"),
                 'JESDown_Abs': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='Absolute', jes='down', jes_uncertainty_file_prefix="Regrouped_"),
                 'JESUp_Abs'+year_pf: JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='Absolute'+year_pf, jes='up', jes_uncertainty_file_prefix="Regrouped_"),
-                'JESDowb_Abs'+year_pf:JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='Absolute'+year_pf,jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_Abs'+year_pf:JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='Absolute'+year_pf,jes='down', jes_uncertainty_file_prefix="Regrouped_"),
                 
                 'JESUp_BBEC1': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='BBEC1', jes='up', jes_uncertainty_file_prefix="Regrouped_"),
                 'JESDown_BBEC1': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='BBEC1', jes='down', jes_uncertainty_file_prefix="Regrouped_"),
@@ -216,7 +216,7 @@ class hh4bProducer(Module):
                 'JESUp_Abs': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='Absolute', jes='up', jes_uncertainty_file_prefix="Regrouped_"),
                 'JESDown_Abs': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='Absolute', jes='down', jes_uncertainty_file_prefix="Regrouped_"),
                 'JESUp_Abs'+year_pf: JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='Absolute'+year_pf, jes='up', jes_uncertainty_file_prefix="Regrouped_"),
-                'JESDowb_Abs'+year_pf:JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='Absolute'+year_pf,jes='down', jes_uncertainty_file_prefix="Regrouped_"),
+                'JESDown_Abs'+year_pf:JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='Absolute'+year_pf,jes='down', jes_uncertainty_file_prefix="Regrouped_"),
 
                 'JESUp_BBEC1': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='BBEC1', jes='up', jes_uncertainty_file_prefix="Regrouped_"),
                 'JESDown_BBEC1': JetMETCorrector(year=self.year, jetType="AK8PFPuppi", jes_source='BBEC1', jes='down', jes_uncertainty_file_prefix="Regrouped_"),
@@ -321,6 +321,7 @@ class hh4bProducer(Module):
             self.out.branch(prefix + "Phi", "F")
             self.out.branch(prefix + "Mass", "F")
             self.out.branch(prefix + "MassSD", "F")
+            self.out.branch(prefix + "MassSD_noJMS", "F")
             self.out.branch(prefix + "MassSD_UnCorrected", "F")
             self.out.branch(prefix + "MassRegressed", "F")
             self.out.branch(prefix + "MassRegressed_UnCorrected", "F")
@@ -428,7 +429,9 @@ class hh4bProducer(Module):
 
         self.out.branch("mj2_over_mj1", "F")
         self.out.branch("mj2_over_mj1_MassRegressed", "F")
-        
+
+        # resolved tag: nBTaggedJets == 4
+
         # for phase-space overlap removal with VBFHH->4b boosted analysis
         # small jets
         self.out.branch("isVBFtag", "I")
@@ -458,6 +461,7 @@ class hh4bProducer(Module):
             self.out.branch(prefix + "Pt", "F")
             self.out.branch(prefix + "Eta", "F")
             self.out.branch(prefix + "Phi", "F")
+
         self.out.branch("nBTaggedJets", "I")
 
         # leptons
@@ -1032,6 +1036,7 @@ class hh4bProducer(Module):
             
             # uncertainties
             if self.isMC:
+                fill_fj(prefix + "MassSD_noJMS", fj.msoftdrop)
                 fill_fj(prefix + "MassSD", fj.msoftdrop_corr)
                 fill_fj(prefix + "MassSD_JMS_Down", fj.msoftdrop_JMS_Down)
                 fill_fj(prefix + "MassSD_JMS_Up",  fj.msoftdrop_JMS_Up)
@@ -1044,6 +1049,7 @@ class hh4bProducer(Module):
                 fill_fj(prefix + "MassRegressed_JMR_Down", fj.regressed_mass_JMR_Down)
                 fill_fj(prefix + "MassRegressed_JMR_Up", fj.regressed_mass_JMR_Up)
             else:
+                fill_fj(prefix + "MassSD_noJMS", fj.msoftdrop)
                 fill_fj(prefix + "MassSD", fj.msoftdropJMS)
                 fill_fj(prefix + "MassRegressed", fj.regressed_massJMS)
             
@@ -1052,7 +1058,7 @@ class hh4bProducer(Module):
                 hasMuon = True if (closest(fj, event.cleaningMuons)[1] < 1.0) else False
                 hasElectron = True if (closest(fj, event.cleaningElectrons)[1] < 1.0) else False
                 hasBJetCSVLoose = True if (closest(fj, event.bljets)[1] < 1.0) else False
-                hasBJetCSVMedium = True if (closest(fj, event.bmjets)[1] < 1.0) else False
+                hasBJetCSVMedium = True if (closest(fj, event.bmjetsCSV)[1] < 1.0) else False
                 hasBJetCSVTight = True if (closest(fj, event.btjets)[1] < 1.0) else False
             else:
                 hasMuon = False
@@ -1145,7 +1151,6 @@ class hh4bProducer(Module):
                     fill_fj(prefix + "PtOverMHH" + "_" + syst, fj.pt/(h1Jet+h2Jet).M())
 
     def fillJetInfo(self, event, jets):
-        nBTaggedJets = 0
         for idx in ([1, 2, 3, 4]):
             j = jets[idx-1] if len(jets)>idx-1 else _NullObject()
             prefix = 'jet%i'%(idx)
@@ -1153,6 +1158,7 @@ class hh4bProducer(Module):
             fillBranch(prefix + "Pt", j.pt)
             fillBranch(prefix + "Eta", j.eta)
             fillBranch(prefix + "Phi", j.phi)
+
         self.out.fillBranch("nBTaggedJets", self.nBTaggedJets)
 
     def fillVBFFatJetInfo(self, event, fatjets):
@@ -1247,6 +1253,10 @@ class hh4bProducer(Module):
             if(probe_jets[0].pt > 250 and len(event.looseLeptons)>0): passSel = True
         elif self._opts['option'] == "21":
             if(probe_jets[0].pt > 250 and (probe_jets[0].msoftdropJMS >30 or probe_jets[0].regressed_massJMS > 30)): passSel=True
+        elif self._opts['option'] == "8":
+            if(probe_jets[0].pt > 300 and abs(probe_jets[0].eta)<2.5 and probe_jets[1].pt > 300 and abs(probe_jets[1].eta)<2.5 and len(probe_jets[0].subjets)>1 and len(probe_jets[1].subjets)>1):
+                if ((probe_jets[0].msoftdropJMS>30 and probe_jets[1].msoftdropJMS>30) or (probe_jets[0].regressed_massJMS>30 and probe_jets[1].regressed_massJMS>30) or (probe_jets[0].msoftdrop>30 and probe_jets[1].msoftdrop>30)):
+                    passSel=True
         if not passSel: return False
 
         # load gen history
