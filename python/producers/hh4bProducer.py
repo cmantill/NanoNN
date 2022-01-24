@@ -341,6 +341,7 @@ class hh4bProducer(Module):
             self.out.branch(prefix + "HasBJetCSVMedium", "O")
             self.out.branch(prefix + "HasBJetCSVTight", "O")
             self.out.branch(prefix + "OppositeHemisphereHasBJet", "O")
+            self.out.branch(prefix + "NSubJets", "I")
 
             # here we form the MHH system w. mass regressed
             self.out.branch(prefix + "PtOverMHH", "F")
@@ -757,7 +758,7 @@ class hh4bProducer(Module):
         if self.year == 2016:
             jpt_thr = 30; jeta_thr = 2.4;
         event.bmjets = [j for j in event.bmjets if j.pt > jpt_thr and abs(j.eta) < jeta_thr and (j.jetId >= 4) and (j.puId >=2)]
-        self.nBTaggedJets = len(event.bmjets)
+        self.nBTaggedJets = int(len(event.bmjets))
 
         # sort and select variations of jets
         if self._allJME:
@@ -1079,6 +1080,7 @@ class hh4bProducer(Module):
                         nb_fj_opp_ += 1
             hasBJetOpp = True if (nb_fj_opp_>0) else False
             fill_fj(prefix + "OppositeHemisphereHasBJet", hasBJetOpp)
+            fill_fj(prefix + "NSubJets", len(fj.subjets))
 
             # hh variables
             ptovermsd = -1 
@@ -1151,6 +1153,7 @@ class hh4bProducer(Module):
                     fill_fj(prefix + "PtOverMHH" + "_" + syst, fj.pt/(h1Jet+h2Jet).M())
 
     def fillJetInfo(self, event, jets):
+        self.out.fillBranch("nBTaggedJets", self.nBTaggedJets)
         for idx in ([1, 2, 3, 4]):
             j = jets[idx-1] if len(jets)>idx-1 else _NullObject()
             prefix = 'jet%i'%(idx)
@@ -1158,8 +1161,6 @@ class hh4bProducer(Module):
             fillBranch(prefix + "Pt", j.pt)
             fillBranch(prefix + "Eta", j.eta)
             fillBranch(prefix + "Phi", j.phi)
-
-        self.out.fillBranch("nBTaggedJets", self.nBTaggedJets)
 
     def fillVBFFatJetInfo(self, event, fatjets):
         for idx in ([1, 2]):
@@ -1254,7 +1255,7 @@ class hh4bProducer(Module):
         elif self._opts['option'] == "21":
             if(probe_jets[0].pt > 250 and (probe_jets[0].msoftdropJMS >30 or probe_jets[0].regressed_massJMS > 30)): passSel=True
         elif self._opts['option'] == "8":
-            if(probe_jets[0].pt > 300 and abs(probe_jets[0].eta)<2.5 and probe_jets[1].pt > 300 and abs(probe_jets[1].eta)<2.5 and len(probe_jets[0].subjets)>1 and len(probe_jets[1].subjets)>1):
+            if(probe_jets[0].pt > 300 and abs(probe_jets[0].eta)<2.5 and probe_jets[1].pt > 300 and abs(probe_jets[1].eta)<2.5):
                 if ((probe_jets[0].msoftdropJMS>30 and probe_jets[1].msoftdropJMS>30) or (probe_jets[0].regressed_massJMS>30 and probe_jets[1].regressed_massJMS>30) or (probe_jets[0].msoftdrop>30 and probe_jets[1].msoftdrop>30)):
                     passSel=True
         if not passSel: return False
