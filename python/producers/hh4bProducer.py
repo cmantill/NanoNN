@@ -333,6 +333,7 @@ class hh4bProducer(Module):
             self.out.branch(prefix + "PNetQCDcc", "F")
             self.out.branch(prefix + "PNetQCDothers", "F")
             self.out.branch(prefix + "Tau3OverTau2", "F")
+            self.out.branch(prefix + "Nsubjets", "I")
 
             self.out.branch(prefix + "GenMatchIndex", "I")
             self.out.branch(prefix + "HasMuon", "O")
