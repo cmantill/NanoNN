@@ -58,7 +58,7 @@ class triggerEfficiency():
             for key,h in self.triggerHists[key].items():
                 h.SetDirectory(0)
             triggerFile.Close()
-        
+
     def getEfficiency(self, pt, mass, xbb=-1, mcEff=False):
         triggerHists = self.triggerHists['mc'] if mcEff else self.triggerHists['data']
         if xbb < 0.9 and xbb>=0:
@@ -73,13 +73,13 @@ class triggerEfficiency():
             thist = triggerHists['all']
 
         # constrain to histogram bounds
-        if mass > thist.GetXaxis().GetXmax() * 0.999: 
+        if mass > thist.GetXaxis().GetXmax() * 0.999:
             tmass = thist.GetXaxis().GetXmax() * 0.999
-        elif mass < 0: 
+        elif mass < 0:
             tmass = 0.001
-        else: 
+        else:
             tmass = mass
-            
+
         if pt > thist.GetYaxis().GetXmax() * 0.999:
             tpt = thist.GetYaxis().GetXmax() * 0.999
         elif pt < 0:
@@ -87,12 +87,12 @@ class triggerEfficiency():
         else:
             tpt  = pt
 
-        trigEff = thist.GetBinContent(thist.GetXaxis().FindFixBin(tmass), 
+        trigEff = thist.GetBinContent(thist.GetXaxis().FindFixBin(tmass),
                                       thist.GetYaxis().FindFixBin(tpt))
         return trigEff
-        
+
 class hh4bProducer(Module):
-    
+
     def __init__(self, year, **kwargs):
         self.year = year
         self.jetType = 'ak8'
@@ -120,7 +120,7 @@ class hh4bProducer(Module):
 
         logger.info('Running %s channel for %s jets with JME systematics %s, other options %s',
                     self._opts['option'], self.jetType, str(self._jmeSysts), str(self._opts))
-        
+
         # set up mass regression
         if self._opts['run_mass_regression']:
             from PhysicsTools.NanoNN.helpers.makeInputs import ParticleNetTagInfoMaker
@@ -137,11 +137,11 @@ class hh4bProducer(Module):
         self.DeepCSV_WP_L = {2016: 0.2217, 2017: 0.1522, 2018: 0.1241}[self.year]
         self.DeepCSV_WP_M = {2016: 0.6321, 2017: 0.4941, 2018: 0.4184}[self.year]
         self.DeepCSV_WP_T = {2016: 0.8953, 2017: 0.8001, 2018: 0.7527}[self.year]
-        
+
         self.DeepFlavB_WP_L = {2016: 0.0521, 2017: 0.0521, 2018: 0.0494}[self.year]
         self.DeepFlavB_WP_M = {2016: 0.3033, 2017: 0.3033, 2018: 0.2770}[self.year]
         self.DeepFlavB_WP_T = {2016: 0.7489, 2017: 0.7489, 2018: 0.7264}[self.year]
-        
+
         # jet met corrections
         # jet mass scale/resolution: https://github.com/cms-nanoAOD/nanoAOD-tools/blob/a4b3c03ca5d8f4b8fbebc145ddcd605c7553d767/python/postprocessing/modules/jme/jetmetHelperRun2.py#L45-L58
         self._jmsValues = {2016: [1.00, 0.9906, 1.0094],
@@ -174,17 +174,17 @@ class hh4bProducer(Module):
                 'JERDown': JetMETCorrector(year=self.year, jetType="AK4PFchs", jer='down'),
                 'JESUp': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes='up'),
                 'JESDown': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes='down'),
-                
+
                 'JESUp_Abs': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='Absolute', jes='up', jes_uncertainty_file_prefix="Regrouped_"),
                 'JESDown_Abs': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='Absolute', jes='down', jes_uncertainty_file_prefix="Regrouped_"),
                 'JESUp_Abs'+year_pf: JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='Absolute'+year_pf, jes='up', jes_uncertainty_file_prefix="Regrouped_"),
                 'JESDown_Abs'+year_pf:JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='Absolute'+year_pf,jes='down', jes_uncertainty_file_prefix="Regrouped_"),
-                
+
                 'JESUp_BBEC1': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='BBEC1', jes='up', jes_uncertainty_file_prefix="Regrouped_"),
                 'JESDown_BBEC1': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='BBEC1', jes='down', jes_uncertainty_file_prefix="Regrouped_"),
                 'JESUp_BBEC1'+year_pf: JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='BBEC1'+year_pf, jes='up', jes_uncertainty_file_prefix="Regrouped_"),
                 'JESDown_BBEC1'+year_pf: JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='BBEC1'+year_pf, jes='down', jes_uncertainty_file_prefix="Regrouped_"),
-                
+
                 'JESUp_EC2': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='EC2', jes='up', jes_uncertainty_file_prefix="Regrouped_"),
                 'JESDown_EC2': JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='EC2', jes='down', jes_uncertainty_file_prefix="Regrouped_"),
                 'JESUp_EC2'+year_pf: JetMETCorrector(year=self.year, jetType="AK4PFchs", jes_source='EC2'+year_pf, jes='up', jes_uncertainty_file_prefix="Regrouped_"),
@@ -268,7 +268,7 @@ class hh4bProducer(Module):
             self.jetmetCorr.beginJob()
             self.fatjetCorr.beginJob()
             self.subjetCorr.beginJob()
-            
+
         if self._allJME:
             for key,corr in self.jetmetCorrectors.items():
                 self.jetmetCorrectors[key].beginJob()
@@ -281,23 +281,23 @@ class hh4bProducer(Module):
 
     def beginFile(self, inputFile, outputFile, inputTree, wrappedOutputTree):
         self.isMC = bool(inputTree.GetBranch('genWeight'))
-        
+
         # remove all possible h5 cache files
         for f in os.listdir('.'):
             if f.endswith('.h5'):
                 os.remove(f)
-                
+
         if self._opts['run_mass_regression']:
             #for p in self.pnMassRegressions:
             #    p.load_cache(inputFile)
             self.tagInfoMaker.init_file(inputFile, fetch_step=1000)
-                
+
         self.out = wrappedOutputTree
-        
+
         # weight variables
         self.out.branch("weight", "F")
         #self.out.branch("weightLHEScaleUp", "F")
-        #self.out.branch("weightLHEScaleDown", "F")  
+        #self.out.branch("weightLHEScaleDown", "F")
 
         # event variables
         self.out.branch("met", "F")
@@ -333,7 +333,7 @@ class hh4bProducer(Module):
             self.out.branch(prefix + "PNetQCDcc", "F")
             self.out.branch(prefix + "PNetQCDothers", "F")
             self.out.branch(prefix + "Tau3OverTau2", "F")
-            
+
             self.out.branch(prefix + "GenMatchIndex", "I")
             self.out.branch(prefix + "HasMuon", "O")
             self.out.branch(prefix + "HasElectron", "O")
@@ -448,13 +448,13 @@ class hh4bProducer(Module):
             self.out.branch(prefix + "Eta", "F")
             self.out.branch(prefix + "Phi", "F")
             self.out.branch(prefix + "Mass", "F")
-            
+
             prefix = 'vbffatJet%i'%idx
             self.out.branch(prefix + "Pt", "F")
             self.out.branch(prefix + "Eta", "F")
             self.out.branch(prefix + "Phi", "F")
             self.out.branch(prefix + "PNetXbb", "F")
-            
+
         # more small jets
         for idx in ([1, 2, 3, 4]):
             prefix = 'jet%i'%idx
@@ -478,12 +478,12 @@ class hh4bProducer(Module):
             self.out.branch(prefix + "Pt", "F")
             self.out.branch(prefix + "Eta", "F")
             self.out.branch(prefix + "Phi", "F")
-            
+
     def endFile(self, inputFile, outputFile, inputTree, wrappedOutputTree):
         if self._opts['run_mass_regression'] and self._opts['WRITE_CACHE_FILE']:
             for p in self.pnMassRegressions:
                 p.update_cache()
-                
+
         # remove all h5 cache files
         if self._opts['run_mass_regression']:
             for f in os.listdir('.'):
@@ -494,12 +494,12 @@ class hh4bProducer(Module):
             cwd = ROOT.gDirectory
             outputFile.cd()
             cwd.cd()
-                    
+
     def loadGenHistory(self, event, fatjets):
         # gen matching
         if not self.isMC:
             return
-            
+
         try:
             genparts = event.genparts
         except RuntimeError as e:
@@ -529,13 +529,13 @@ class hh4bProducer(Module):
                 if dau.pdgId == gp.pdgId:
                     return getFinal(dau)
             return gp
-               
+
         lepGenTops = []
         hadGenTops = []
         hadGenWs = []
         hadGenZs = []
         hadGenHs = []
-        
+
         for gp in genparts:
             if gp.statusFlags & (1 << 13) == 0:
                 continue
@@ -560,13 +560,13 @@ class hh4bProducer(Module):
             elif abs(gp.pdgId) == 25:
                 if isHadronic(gp):
                     hadGenHs.append(gp)
-                         
+
         for parton in itertools.chain(lepGenTops, hadGenTops):
             parton.daus = (parton.genB, genparts[parton.genW.dauIdx[0]], genparts[parton.genW.dauIdx[1]])
             parton.genW.daus = parton.daus[1:]
         for parton in itertools.chain(hadGenWs, hadGenZs, hadGenHs):
             parton.daus = (genparts[parton.dauIdx[0]], genparts[parton.dauIdx[1]])
-            
+
         for fj in fatjets:
             fj.genH, fj.dr_H, fj.genHidx = closest(fj, hadGenHs)
             fj.genZ, fj.dr_Z, fj.genZidx = closest(fj, hadGenZs)
@@ -575,14 +575,14 @@ class hh4bProducer(Module):
             fj.genLepT, fj.dr_LepT, fj.genLepidx = closest(fj, lepGenTops)
 
         return hadGenHs
-               
+
     def selectLeptons(self, event):
         # do lepton selection
         event.vbfLeptons = [] # usef for vbf removal
         event.looseLeptons = []  # used for lepton counting
         event.cleaningElectrons = []
         event.cleaningMuons = []
-        
+
         electrons = Collection(event, "Electron")
         for el in electrons:
             el.Id = el.charge * (11)
@@ -593,7 +593,7 @@ class hh4bProducer(Module):
                 event.looseLeptons.append(el)
             if el.pt > 30 and el.mvaFall17V2noIso_WP90:
                 event.cleaningElectrons.append(el)
-                
+
         muons = Collection(event, "Muon")
         for mu in muons:
             mu.Id = mu.charge * (13)
@@ -614,7 +614,7 @@ class hh4bProducer(Module):
         event.met = METObject(event, "METFixEE2017") if self.year == 2017 else METObject(event, "MET")
         event._allFatJets = Collection(event, self._fj_name)
         event.subjets = Collection(event, self._sj_name)  # do not sort subjets after updating!!
-        
+
         # JetMET corrections
         if self._needsJMECorr:
             rho = event.fixedGridRhoFastjetAll
@@ -624,8 +624,8 @@ class hh4bProducer(Module):
                                              defaultMET=METObject(event, "MET"),
                                              rho=rho, genjets=Collection(event, 'GenJet') if self.isMC else None,
                                              isMC=self.isMC, runNumber=event.run)
-            event._allJets = sorted(event._allJets, key=lambda x: x.pt, reverse=True) 
-        
+            event._allJets = sorted(event._allJets, key=lambda x: x.pt, reverse=True)
+
             # correct fatjets
             self.fatjetCorr.setSeed(rndSeed(event, event._allFatJets))
             self.fatjetCorr.correctJetAndMET(jets=event._allFatJets, met=None, rho=rho,
@@ -644,7 +644,7 @@ class hh4bProducer(Module):
             event._AllJets = {}
             event._FatJets = {}
             extra=0
-            for key,corr in self.fatjetCorrectors.items():          
+            for key,corr in self.fatjetCorrectors.items():
                 if key=='nominal':
                     self.fatjetCorrectors[key].setSeed(rndSeed(event, event._allFatJets))
                     self.fatjetCorrectors[key].correctJetAndMET(jets=event._allFatJets, met=None, rho=rho,
@@ -689,7 +689,7 @@ class hh4bProducer(Module):
                                           isMC=self.isMC, runNumber=event.run)
                     event._AllJets[key] = sorted(event._AllJets[key], key=lambda x: x.pt, reverse=True)
 
-        # link fatjet to subjets 
+        # link fatjet to subjets
         for idx, fj in enumerate(event._allFatJets):
             fj.idx = idx
             fj.is_qualified = True
@@ -709,7 +709,7 @@ class hh4bProducer(Module):
 
             # do we need to recompute the softdrop mass?
             # fj.msoftdrop = sumP4(*fj.subjets).M()
-            
+
             corr_mass_JMRUp = random.gauss(0.0, self._jmrValues[2] - 1.)
             corr_mass = max(self._jmrValues[0]-1.,0.)/(self._jmrValues[2]-1.) * corr_mass_JMRUp
             corr_mass_JMRDown = max(self._jmrValues[1]-1.,0.)/(self._jmrValues[2]-1.) * corr_mass_JMRUp
@@ -722,8 +722,8 @@ class hh4bProducer(Module):
 
         # sort fat jets
         event._ptFatJets = sorted(event._allFatJets, key=lambda x: x.pt, reverse=True)  # sort by pt
-        event._xbbFatJets = sorted(event._allFatJets, key=lambda x: x.Xbb, reverse = True) # sort by PnXbb score  
-        
+        event._xbbFatJets = sorted(event._allFatJets, key=lambda x: x.Xbb, reverse = True) # sort by PnXbb score
+
         # select jets
         event.fatjets = [fj for fj in event._xbbFatJets if fj.pt > 200 and abs(fj.eta) < 2.4 and (fj.jetId & 2)]
         event.ak4jets = [j for j in event._allJets if j.pt > 25 and abs(j.eta) < 2.4 and (j.jetId & 4)]
@@ -749,7 +749,7 @@ class hh4bProducer(Module):
             if j.btagDeepFlavB > self.DeepFlavB_WP_M:
                 event.bmjets.append(j)
             if j.btagDeepFlavB > self.DeepFlavB_WP_T:
-                event.btjets.append(j)  
+                event.btjets.append(j)
             if j.btagDeepB > self.DeepCSV_WP_M:
                 event.bmjetsCSV.append(j)
 
@@ -766,15 +766,15 @@ class hh4bProducer(Module):
             for syst in self._jmeLabels:
                 if syst == 'nominal': continue
                 ptordered = sorted(event._FatJets[syst], key=lambda x: x.pt, reverse=True)
-                xbbordered = sorted(event._FatJets[syst], key=lambda x: x.Xbb, reverse = True) 
+                xbbordered = sorted(event._FatJets[syst], key=lambda x: x.Xbb, reverse = True)
                 event.fatjetsJME[syst] = [fj for fj in xbbordered if fj.pt > 200 and abs(fj.eta) < 2.4 and (fj.jetId & 2)]
- 
+
                 vbffatjets_syst = [fj for fj in ptordered if fj.pt > 200 and abs(fj.eta) < 2.4 and (fj.jetId & 2) and closest(fj, event.looseLeptons)[1] >= 0.8]
                 vbfjetid = 3 if self.year == 2017 else 2
                 event.vbfak4jetsJME[syst] = [j for j in event._AllJets[syst] if j.pt > 25 and abs(j.eta) < 4.7 and (j.jetId >= vbfjetid) \
                                              and ( (j.pt < 50 and j.puId>=6) or (j.pt > 50) ) and closest(j, vbffatjets_syst)[1] > 1.2 \
                                              and closest(j, event.vbfLeptons)[1] >= 0.4]
-                
+
     def evalMassRegression(self, event, jets):
         for i,j in enumerate(jets):
             if self._opts['run_mass_regression']:
@@ -801,9 +801,9 @@ class hh4bProducer(Module):
                         if len(event.fatjetsJME[syst])>i:
                             event.fatjetsJME[syst][i].regressed_mass = j.regressed_mass
                             event.fatjetsJME[syst][i].regressed_massJMS = j.regressed_massJMS
-                            
+
             else:
-                j.regressed_mass = 0          
+                j.regressed_mass = 0
                 j.regressed_massJMS = 0
 
     def fillBaseEventInfo(self, event, fatjets, hadGenHs):
@@ -831,7 +831,7 @@ class hh4bProducer(Module):
 
         # for PDF weights
         # need to determine if there are replicas or hessian eigenvectors?
-        # 
+        #
         # if len(event.LHEPdfWeight)>0:
         # (1) get average of weights
         # (2) then sum ( weight - average )**2
@@ -939,14 +939,14 @@ class hh4bProducer(Module):
                 h2Jet_JMR_Down = polarP4(fatjets[1],mass='msoftdrop_JMR_Down')
                 h1Jet_JMR_Up = polarP4(fatjets[0],mass='msoftdrop_JMR_Up')
                 h2Jet_JMR_Up = polarP4(fatjets[1],mass='msoftdrop_JMR_Up')
-    
+
                 self.out.fillBranch("hh_pt_JMS_Down", (h1Jet_JMS_Down+h2Jet_JMS_Down).Pt())
                 self.out.fillBranch("hh_eta_JMS_Down", (h1Jet_JMS_Down+h2Jet_JMS_Down).Eta())
                 self.out.fillBranch("hh_mass_JMS_Down", (h1Jet_JMS_Down+h2Jet_JMS_Down).M())
                 self.out.fillBranch("hh_pt_JMS_Up", (h1Jet_JMS_Up+h2Jet_JMS_Up).Pt())
                 self.out.fillBranch("hh_eta_JMS_Up", (h1Jet_JMS_Up+h2Jet_JMS_Up).Eta())
                 self.out.fillBranch("hh_mass_JMS_Up", (h1Jet_JMS_Up+h2Jet_JMS_Up).M())
-                
+
                 self.out.fillBranch("hh_pt_JMR_Down", (h1Jet_JMR_Down+h2Jet_JMR_Down).Pt())
                 self.out.fillBranch("hh_eta_JMR_Down", (h1Jet_JMR_Down+h2Jet_JMR_Down).Eta())
                 self.out.fillBranch("hh_mass_JMR_Down", (h1Jet_JMR_Down+h2Jet_JMR_Down).M())
@@ -963,7 +963,7 @@ class hh4bProducer(Module):
                 h2Jet_reg_JMR_Down = polarP4(fatjets[1],mass='regressed_mass_JMR_Down')
                 h1Jet_reg_JMR_Up = polarP4(fatjets[0],mass='regressed_mass_JMR_Up')
                 h2Jet_reg_JMR_Up = polarP4(fatjets[1],mass='regressed_mass_JMR_Up')
-                
+
                 self.out.fillBranch("hh_pt_MassRegressed_JMS_Down", (h1Jet_reg_JMS_Down+h2Jet_reg_JMS_Down).Pt())
                 self.out.fillBranch("hh_eta_MassRegressed_JMS_Down", (h1Jet_reg_JMS_Down+h2Jet_reg_JMS_Down).Eta())
                 self.out.fillBranch("hh_mass_MassRegressed_JMS_Down", (h1Jet_reg_JMS_Down+h2Jet_reg_JMS_Down).M())
@@ -1033,7 +1033,8 @@ class hh4bProducer(Module):
             fill_fj(prefix + "PNetQCDcc", fj.ParticleNetMD_probQCDcc)
             fill_fj(prefix + "PNetQCDothers", fj.ParticleNetMD_probQCDothers)
             fill_fj(prefix + "Tau3OverTau2", fj.t32)
-            
+            fill_fj(prefix + "Nsubjets", len(fj.subjets))
+
             # uncertainties
             if self.isMC:
                 fill_fj(prefix + "MassSD_noJMS", fj.msoftdrop)
@@ -1052,7 +1053,7 @@ class hh4bProducer(Module):
                 fill_fj(prefix + "MassSD_noJMS", fj.msoftdrop)
                 fill_fj(prefix + "MassSD", fj.msoftdropJMS)
                 fill_fj(prefix + "MassRegressed", fj.regressed_massJMS)
-            
+
             # lepton variables
             if fj:
                 hasMuon = True if (closest(fj, event.cleaningMuons)[1] < 1.0) else False
@@ -1081,8 +1082,8 @@ class hh4bProducer(Module):
             fill_fj(prefix + "OppositeHemisphereHasBJet", hasBJetOpp)
 
             # hh variables
-            ptovermsd = -1 
-            ptovermregressed = -1 
+            ptovermsd = -1
+            ptovermregressed = -1
             if fj:
                 ptovermsd = -1 if fj.msoftdropJMS<=0 else fj.pt/fj.msoftdropJMS
                 ptovermregressed = -1 if fj.regressed_massJMS<=0 else fj.pt/fj.regressed_massJMS
@@ -1128,7 +1129,7 @@ class hh4bProducer(Module):
         if not self._allJME or not self.isMC: return
         for syst in self._jmeLabels:
             if syst == 'nominal': continue
-            if len(event.fatjetsJME[syst]) < 2 or len(fatjets)<2: 
+            if len(event.fatjetsJME[syst]) < 2 or len(fatjets)<2:
                 self.out.fillBranch("hh_pt" + "_" + syst, 0)
                 self.out.fillBranch("hh_eta" + "_" + syst, 0)
                 self.out.fillBranch("hh_mass" + "_" + syst, 0)
@@ -1170,7 +1171,7 @@ class hh4bProducer(Module):
             fillBranch(prefix + "Eta", fj.eta)
             fillBranch(prefix + "Phi", fj.phi)
             fillBranch(prefix + "PNetXbb", fj.Xbb)
-            
+
     def fillVBFJetInfo(self, event, jets):
         for idx in ([1, 2]):
             j = jets[idx-1]if len(jets)>idx-1 else _NullObject()
@@ -1203,7 +1204,7 @@ class hh4bProducer(Module):
                 isVBFtag = 0
                 if((Jet1+Jet2).M() > 500. and abs(Jet1.Eta() - Jet2.Eta()) > 4): isVBFtag = 1
             self.out.fillBranch('isVBFtag' + "_" + syst, isVBFtag)
-            
+
     def fillLeptonInfo(self, event, leptons):
         for idx in ([1, 2]):
             lep = leptons[idx-1]if len(leptons)>idx-1 else _NullObject()
@@ -1213,10 +1214,10 @@ class hh4bProducer(Module):
             fillBranch(prefix + "Eta", lep.eta)
             fillBranch(prefix + "Phi", lep.phi)
             fillBranch(prefix + "Id", lep.Id)
-    
+
     def analyze(self, event):
         """process event, return True (go to next module) or False (fail, go to next event)"""
-        
+
         # fill histograms
         event.gweight = 1
         if self.isMC:
@@ -1224,9 +1225,9 @@ class hh4bProducer(Module):
 
         # select leptons and correct jets
         self.selectLeptons(event)
-        self.correctJetsAndMET(event)          
-        
-        # basic jet selection 
+        self.correctJetsAndMET(event)
+
+        # basic jet selection
         probe_jets = [fj for fj in event.fatjets if fj.pt > 200]
         if self._opts['option'] == "10":
             probe_jets = [fj for fj in event.fatjets if (fj.pt > 200 and fj.t32<0.54)]
@@ -1254,7 +1255,7 @@ class hh4bProducer(Module):
         elif self._opts['option'] == "21":
             if(probe_jets[0].pt > 250 and (probe_jets[0].msoftdropJMS >30 or probe_jets[0].regressed_massJMS > 30)): passSel=True
         elif self._opts['option'] == "8":
-            if(probe_jets[0].pt > 300 and abs(probe_jets[0].eta)<2.5 and probe_jets[1].pt > 300 and abs(probe_jets[1].eta)<2.5 and len(probe_jets[0].subjets)>1 and len(probe_jets[1].subjets)>1):
+            if(probe_jets[0].pt > 300 and abs(probe_jets[0].eta)<2.5 and probe_jets[1].pt > 300 and abs(probe_jets[1].eta)<2.5:
                 if ((probe_jets[0].msoftdropJMS>30 and probe_jets[1].msoftdropJMS>30) or (probe_jets[0].regressed_massJMS>30 and probe_jets[1].regressed_massJMS>30) or (probe_jets[0].msoftdrop>30 and probe_jets[1].msoftdrop>30)):
                     passSel=True
         if not passSel: return False
@@ -1265,14 +1266,14 @@ class hh4bProducer(Module):
         # fill output branches
         self.fillBaseEventInfo(event, probe_jets, hadGenHs)
         self.fillFatJetInfo(event, probe_jets)
-          
+
         # for ak4 jets we only fill the b-tagged medium jets
         self.fillJetInfo(event, event.bmjets)
         self.fillVBFFatJetInfo(event, event.vbffatjets)
         self.fillVBFJetInfo(event, event.vbfak4jets)
         self.fillVBFJetInfoJME(event, event.vbfak4jets)
         self.fillLeptonInfo(event, event.looseLeptons)
-        
+
         # for all jme systs
         if self._allJME and self.isMC:
             self.fillFatJetInfoJME(event, probe_jets)
