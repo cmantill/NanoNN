@@ -19,14 +19,32 @@ class InputProducer(Module):
      def __init__(self,jetType="AK8"):
           self.nJets = 2
           self.jetType = jetType
-          self.jet_r = 0.8 if jetType=="AK8" else 1.5
+          self.jet_r = 0.8 
+          self.jetTag = ""
+          self.fatpfcand_branch = "FatJetPFCands"
+          self.pfcands_counts = "_pFCandsIdx"
+
+          if jetType=="AK15":
+               self.jetTag = "AK15"
+               self.jet_r = 1.5
+               self.fatpfcand_branch = "JetPFCandsAK15"
+               self.pfcands_counts = "_candIdx"
+          if jetType=="AK15_PFNano":
+               self.jetTag = "AK15"
+               self.jet_r = 1.5
+               self.fatpfcand_branch = "FatJetAK15PFCands"
+               
           self.jet_r2 = self.jet_r * self.jet_r
-          self.jetTag = "" if jetType=="AK8" else jetType
-          fatpfcand_branch = "FatJetPFCands" if jetType=="AK8" else "JetPFCandsAK15"
-          self.tagInfoMaker = ParticleNetTagInfoMaker(fatjet_branch='FatJet'+self.jetTag, pfcand_branch='PFCands', sv_branch='SV', fatpfcand_branch=fatpfcand_branch, jetR=self.jet_r)
-          self.pnTagger = ParticleNetJetTagsProducer(
-               os.path.expandvars('$CMSSW_BASE/src/PhysicsTools/NanoNN/data/ParticleNetHWW/input/V03/preprocess.json'),
+
+          self.tagInfoMaker = ParticleNetTagInfoMaker(
+               fatjet_branch='FatJet'+self.jetTag, pfcand_branch='PFCands', sv_branch='SV', 
+               fatpfcand_branch=self.fatpfcand_branch, jetR=self.jet_r,
+               pfcand_counts_branch = self.pfcands_counts,
           )
+          self.pnTagger = ParticleNetJetTagsProducer(
+               os.path.expandvars('$CMSSW_BASE/src/PhysicsTools/NanoNN/data/ParticleNetHWW/input/V04/preprocess.json'),
+          )
+
           self.n_pf = self.pnTagger.prep_params['pf_features']['var_length']
           self.pf_names = self.pnTagger.prep_params['pf_features']['var_names']
           self.n_sv = self.pnTagger.prep_params['sv_features']['var_length']
@@ -46,6 +64,9 @@ class InputProducer(Module):
           self.out.branch("fj_mass", "F", 1)
           self.out.branch("fj_msoftdrop", "F", 1)
           self.out.branch("fj_lsf3", "F", 1)
+          self.out.branch("fj_tau32", "F", 1)
+          self.out.branch("fj_tau31", "F", 1)
+          self.out.branch("fj_tau41", "F", 1)
           self.out.branch("fj_deepTagMD_H4qvsQCD", "F", 1)
           self.out.branch("fj_deepTag_HvsQCD", "F", 1)
           self.out.branch("fj_PN_H4qvsQCD", "F", 1)
@@ -68,9 +89,12 @@ class InputProducer(Module):
           self.out.branch("fj_H_cc", "I", 1)
           self.out.branch("fj_H_qq", "I", 1)
           self.out.branch("fj_H_WW_4q", "I", 1) 
+
           self.out.branch("fj_H_WW_elenuqq", "I", 1)
           self.out.branch("fj_H_WW_munuqq", "I", 1)
-          self.out.branch("fj_H_WW_taunuqq", "I", 1)
+          self.out.branch("fj_H_WW_mutaunuqq", "I", 1)
+          self.out.branch("fj_H_WW_eletaunuqq", "I", 1)
+          self.out.branch("fj_H_WW_hadtaunuqq", "I", 1)
           self.out.branch("fj_H_tt_elenuhad", "I", 1)
           self.out.branch("fj_H_tt_munuhad", "I", 1)
           self.out.branch("fj_H_tt_hadhad", "I", 1)
@@ -133,9 +157,25 @@ class InputProducer(Module):
                if len(gp.dauIdx) == 0:
                     raise ValueError('Particle has no daughters!')
                for idx in gp.dauIdx:
-                    if abs(genparts[idx].pdgId) < 6:
+                    if abs(genparts[idx].pdgId) < 5:
                          return True
                return False
+
+          def isHadronicW(gp):
+               if len(gp.dauIdx) == 0:
+                    raise ValueError('Particle has no daughters!')
+               decays=[abs(genparts[idx].pdgId) for idx in gp.dauIdx]
+               # print(decays)
+               if 4 in decays and 3 in decays:
+                    return True
+               elif 2 in decays and 1 in decays:
+                    return True
+               elif 2 in decays and 3 in decays:
+                    return True
+               elif 4 in decays and 1 in decays:
+                    return True
+               else:
+                    return False
 
           def isDecay(gp,idecay):
                if len(gp.dauIdx) == 0:
@@ -169,7 +209,7 @@ class InputProducer(Module):
           bbGenHs = []
           ccGenHs = []
           qqGenHs = []
-          wwGenHs = []
+          wwGenHs = []; wwGenHs_vec =[]
           ttGenHs = []
           TTGenHs = {'munuhad': {'H': [],'tau0': [], 'tau1': []},
                      'elenuhad': {'H': [],'tau0': [], 'tau1': []},
@@ -177,8 +217,11 @@ class InputProducer(Module):
                 }
           WWGenHs = {'munuqq': {'H': [],'W': [], 'Wstar':[]},
                      'elenuqq': {'H': [],'W': [], 'Wstar':[]},
-                     'taunuqq': {'H': [],'W': [], 'Wstar':[]},
+                     'mutaunuqq': {'H': [],'W': [], 'Wstar':[]},
+                     'eletaunuqq': {'H': [],'W': [], 'Wstar':[]},
+                     'hadtaunuqq': {'H': [],'W': [], 'Wstar':[]},
                      'qqqq': {'H': [],'W': [], 'Wstar':[]},
+                     'other': {'H': [],'W': [], 'Wstar':[]},
                 }
 
 
@@ -206,7 +249,7 @@ class InputProducer(Module):
                          if abs(dau.pdgId) == 24:
                               genW = getFinal(dau)
                               gp.genW = genW
-                              if isHadronic(genW):
+                              if isHadronicW(genW):
                                    hadGenTops.append(gp)
                               else:
                                    lepGenTops.append(gp)
@@ -215,7 +258,7 @@ class InputProducer(Module):
 
                elif abs(gp.pdgId) == 24:
                     isQCD = False
-                    if isHadronic(gp):
+                    if isHadronicW(gp):
                          hadGenWs.append(gp)
                     else:
                          lepGenWs.append(gp)
@@ -227,12 +270,14 @@ class InputProducer(Module):
 
                elif abs(gp.pdgId) == 25:
                     isQCD = False
+                    ws = []
+                    # print gen parts
+                    #for idx in gp.dauIdx:
+                    #     print(genparts[idx].pdgId)
+
                     if isDecay(gp,5):
                          bbGenHs.append(gp)
-                    if isDecay(gp,4):
-                         ccGenHs.append(gp)
-                    if isDecay(gp,3) or isDecay(gp,2) or isDecay(gp,1):
-                         qqGenHs.append(gp)
+                         # print('found b')
                     elif isDecay(gp,15):
                          taus = []
                          for idx in gp.dauIdx:
@@ -281,13 +326,42 @@ class InputProducer(Module):
                                    TTGenHs[key]['tau1'].append(tauvs[1])
 
                     elif isDecay(gp,24):
-                         ws = []
+                         # print('found W')
+                         daugenW = {'elenu':[],'munu':[],'qq':[],'taunu':[]}; w_vecs = [];
                          for idx in gp.dauIdx:
                               dau = genparts[idx]
                               if abs(dau.pdgId) == 24:
                                    genW = getFinal(dau)
                                    ws.append(genW)
                                    if len(ws)==2: break
+                              elif abs(dau.pdgId) >= 11 and abs(dau.pdgId) < 13:
+                                   daugenW['elenu'].append(getFinal(dau))
+                              elif abs(dau.pdgId) >= 13 and abs(dau.pdgId) < 15:
+                                   daugenW['munu'].append(getFinal(dau))
+                              elif abs(dau.pdgId) >= 15 and abs(dau.pdgId) < 17:
+                                   daugenW['taunu'].append(getFinal(dau))
+                              elif abs(dau.pdgId) > 0 and abs(dau.pdgId) < 6:
+                                   daugenW['qq'].append(getFinal(dau))
+
+                         # print('ws ',ws,daugenW,w_vecs)
+                         if len(ws)==1:
+                              w_vec = ROOT.TLorentzVector(); w_vec.SetPtEtaPhiM(ws[0].pt,ws[0].eta,ws[0].phi,ws[0].mass); w_vecs.append(w_vec)
+                              import copy
+                              for k,dpair in daugenW.items():
+                                   for i in range(0,len(dpair),2):
+                                        d1 = ROOT.TLorentzVector(); d1.SetPtEtaPhiM(dpair[i].pt,dpair[i].eta,dpair[i].phi,dpair[i].mass)
+                                        d2 = ROOT.TLorentzVector(); d2.SetPtEtaPhiM(dpair[i+1].pt,dpair[i+1].eta,dpair[i+1].phi,dpair[i+1].mass)
+                                        genw = d1 + d2
+                                        w_vecs.append(genw)
+                                        w_gp = copy.copy(ws[0]);
+                                        w_gp.pt = genw.Pt(); w_gp.mass = genw.M(); w_gp.eta = genw.Eta(); w_gp.phi = genw.Phi();
+                                        w_gp.pdgId = w_gp.pdgId*-1; 
+                                        w_gp.dauIdx = [dpair[i]._index,dpair[i+1]._index]
+                                        w_gp.genPartIdxMother = -1
+                                        w_gp._index = w_gp._index-1
+                                        ws.append(w_gp)
+                              # print(isHadronicW(ws[0]),isDecay(ws[0],11),isDecay(ws[0],13),isDecay(ws[0],15))
+
                          if len(ws)==2:
                               if(ws[0].mass < ws[1].mass):
                                    gp.genWstar = ws[0]
@@ -296,18 +370,36 @@ class InputProducer(Module):
                                    gp.genW = ws[0]
                                    gp.genWstar = ws[1]
                               key = None
-                              if isHadronic(gp.genW) and isHadronic(gp.genWstar): key = 'qqqq'
-                              elif ((isHadronic(gp.genW) and isDecay(gp.genWstar,11)) or (isHadronic(gp.genWstar) and isDecay(gp.genW,11))): key = "elenuqq"
-                              elif ((isHadronic(gp.genW) and isDecay(gp.genWstar,13)) or (isHadronic(gp.genWstar) and isDecay(gp.genW,13))): key = "munuqq"
-                              elif ((isHadronic(gp.genW) and isDecay(gp.genWstar,15)) or (isHadronic(gp.genWstar) and isDecay(gp.genW,15))): key = "taunuqq"
+                              if isHadronicW(gp.genW) and isHadronicW(gp.genWstar): key = 'qqqq'
+                              elif ((isHadronicW(gp.genW) and isDecay(gp.genWstar,11)) or (isHadronicW(gp.genWstar) and isDecay(gp.genW,11))): key = "elenuqq"
+                              elif ((isHadronicW(gp.genW) and isDecay(gp.genWstar,13)) or (isHadronicW(gp.genWstar) and isDecay(gp.genW,13))): key = "munuqq"
+                              elif ((isHadronicW(gp.genW) and isDecay(gp.genWstar,15)) or (isHadronicW(gp.genWstar) and isDecay(gp.genW,15))): 
+                                   for dautau in daugenW['taunu']:
+                                        if abs(dautau.pdgId)==15:
+                                             decays=[abs(genparts[idx].pdgId) for idx in dautau.dauIdx]
+                                             if 13 in decays: key = "mutaunuqq"
+                                             elif 11 in decays: key = "eletaunuqq"
+                                             else: key = "hadtaunuqq"
+                              else: key='other'
 
                               if key:
                                    wwGenHs.append(gp)
                                    WWGenHs[key]['H'].append(gp)
                                    WWGenHs[key]['W'].append(gp.genW)
                                    WWGenHs[key]['Wstar'].append(gp.genWstar)
-
-
+                    else:
+                         # print('no decay for higgs')
+                         # print('tau ',isDecay(gp,15))
+                         # print('ele ',isDecay(gp,11))
+                         # print('mu ',isDecay(gp,13))
+                         # print('qq ',isHadronicW(gp))
+                         if isDecay(gp,4):
+                              ccGenHs.append(gp)
+                         if isDecay(gp,3) or isDecay(gp,2) or isDecay(gp,1):
+                              qqGenHs.append(gp)
+                         #for idx in gp.dauIdx:
+                         #     print(genparts[idx].pdgId)
+                              
           for parton in itertools.chain(lepGenTops, hadGenTops):
                parton.daus = (parton.genB, genparts[parton.genW.dauIdx[0]], genparts[parton.genW.dauIdx[1]])
                parton.genW.daus = parton.daus[1:]
@@ -319,8 +411,16 @@ class InputProducer(Module):
 
           #if isQCD:
           #     print('is QCD')
+          # if len(ccGenHs)>0 or len(qqGenHs)>0:
+          #      print('event')
+          #      print('bbGenHs',bbGenHs,ccGenHs,qqGenHs)
+          #      print('wwGenHs',wwGenHs)
+          #      print(WWGenHs)
 
-          for fj in fatjets:
+          # print for each events (should expect bb/WW)
+          # print('h to ww ',WWGenHs,', h to bb ',bbGenHs)
+
+          for ifj,fj in enumerate(fatjets):
                fj.genZ, fj.dr_Z, fj.genZidx = closest(fj, hadGenZs)
                fj.genW, fj.dr_W, fj.genWidx = closest(fj, hadGenWs)
                fj.genLepW, fj.dr_LepW, fj.genLepWidx = closest(fj, lepGenWs)
@@ -339,7 +439,9 @@ class InputProducer(Module):
                fj.genHWW_qqqq, fj.dr_HWW_qqqq, tmpidx = closest(fj, WWGenHs['qqqq']['H'])
                fj.genHWW_munuqq, fj.dr_HWW_munuqq, tmpidx = closest(fj, WWGenHs['munuqq']['H'])
                fj.genHWW_elenuqq, fj.dr_HWW_elenuqq, tmpidx = closest(fj, WWGenHs['elenuqq']['H'])
-               fj.genHWW_taunuqq, fj.dr_HWW_taunuqq, tmpidx = closest(fj, WWGenHs['taunuqq']['H'])
+               fj.genHWW_mutaunuqq, fj.dr_HWW_mutaunuqq, tmpidx = closest(fj, WWGenHs['mutaunuqq']['H'])
+               fj.genHWW_eletaunuqq, fj.dr_HWW_eletaunuqq, tmpidx = closest(fj, WWGenHs['eletaunuqq']['H'])
+               fj.genHWW_hadtaunuqq, fj.dr_HWW_hadtaunuqq, tmpidx = closest(fj, WWGenHs['hadtaunuqq']['H'])
 
                mindR = 99
                key=None
@@ -352,10 +454,16 @@ class InputProducer(Module):
                if len(WWGenHs['elenuqq']['W']) > 0 and fj.dr_HWW_elenuqq < mindR:
                     key='elenuqq'
                     mindR = fj.dr_HWW_elenuqq
-               if len(WWGenHs['taunuqq']['W']) > 0 and fj.dr_HWW_taunuqq < mindR: 
-                    key='taunuqq'
-                    mindR = fj.dr_HWW_taunuqq
-               
+               if len(WWGenHs['mutaunuqq']['W']) > 0 and fj.dr_HWW_mutaunuqq < mindR: 
+                    key='mutaunuqq'
+                    mindR = fj.dr_HWW_mutaunuqq
+               if len(WWGenHs['eletaunuqq']['W']) > 0 and fj.dr_HWW_eletaunuqq < mindR:
+                    key='eletaunuqq'
+                    mindR = fj.dr_HWW_eletaunuqq
+               if len(WWGenHs['hadtaunuqq']['W']) > 0 and fj.dr_HWW_hadtaunuqq < mindR:
+                    key='hadtaunuqq'
+                    mindR = fj.dr_HWW_hadtaunuqq
+
                wwgenHsW = WWGenHs[key]['W'] if key else []
                wwgenHsWstar = WWGenHs[key]['Wstar'] if key else []
                fj.genHWW_W, fj.dr_HWW_W, tmpidx = closest(fj, wwgenHsW)
@@ -366,6 +474,10 @@ class InputProducer(Module):
                else:
                     fj.genHWW_Wdecay = 0
                     fj.genHWW_Wstardecay = 0
+                    
+
+               # print whether HWW has
+               # print('ifj %i dr_genHbb %.2f dr_genHww %.2f'%(ifj,fj.dr_Hbb,fj.dr_Hww))
 
                # count the number of prongs
                nProngs = 0
@@ -438,16 +550,25 @@ class InputProducer(Module):
           if self.jetType == "AK8":
                genjetlabel = "GenJetAK8"
                genjetsdlabel = "CustomGenJetAK8"
+          elif self.jetType == "AK15_PFNano":
+               genjetlabel = "GenJetAK15"
+               genjetsdlabel = "SoftDropGenJetAK15"
           else:
                genjetlabel = "GenJetAK15"
                genjetsdlabel = "CustomGenJetAK15"
 
           is_genjet = True
+          is_gensdjet = True
           try:
                genjets = Collection(event, genjetlabel)
-               genjets_sd = Collection(event, genjetsdlabel)
           except:
                is_genjet = False
+          try:
+               genjets_sd = Collection(event, genjetsdlabel)
+          except:
+               is_gensdjet = False
+          #print(genjetlabel,genjetsdlabel,is_genjet,is_gensdjet)
+
 
           nevt = 0
           skip = -1
@@ -488,6 +609,9 @@ class InputProducer(Module):
                     self.out.fillBranch("fj_msoftdrop", fj.msoftdrop)
                     if self.jetType=="AK8":
                          self.out.fillBranch("fj_lsf3", fj.lsf3)
+                         self.out.fillBranch("fj_tau32", fj.tau3/fj.tau2 if fj.tau2>0 else -1000)
+                         self.out.fillBranch("fj_tau31", fj.tau3/fj.tau1 if fj.tau1>0 else -1000)
+                         # self.out.fillBranch("fj_tau41", fj.tau4/fj.tau1 if fj.tau1>0 else -1000)
                          self.out.fillBranch("fj_deepTagMD_H4qvsQCD", fj.deepTagMD_H4qvsQCD)
                          self.out.fillBranch("fj_deepTag_HvsQCD", self.tagInfo["_jet_deepTagHvsQCD"][event.idx-self.tagInfoMaker._uproot_start][jidx])
                          self.out.fillBranch("fj_PN_H4qvsQCD", fj.particleNet_H4qvsQCD)
@@ -497,9 +621,14 @@ class InputProducer(Module):
                          self.out.fillBranch("fj_PN_XbbvsQCD", fj_pn_xbb)
                     else:
                          self.out.fillBranch("fj_lsf3", -1000)
+                         self.out.fillBranch("fj_tau32", fj.tau3/fj.tau2 if fj.tau2>0 else -1000)
+                         self.out.fillBranch("fj_tau31", fj.tau3/fj.tau1 if fj.tau1>0 else -1000)
                          self.out.fillBranch("fj_deepTagMD_H4qvsQCD", -1000)
                          self.out.fillBranch("fj_deepTag_HvsQCD", -1000)
-                         self.out.fillBranch("fj_PN_H4qvsQCD", fj.ParticleNet_probHqqqq/(fj.ParticleNet_probHqqqq+fj.ParticleNet_probQCDb+fj.ParticleNet_probQCDbb+fj.ParticleNet_probQCDc+fj.ParticleNet_probQCDcc+fj.ParticleNet_probQCDothers))
+                         try:
+                              self.out.fillBranch("fj_PN_H4qvsQCD", fj.ParticleNet_probHqqqq/(fj.ParticleNet_probHqqqq+fj.ParticleNet_probQCDb+fj.ParticleNet_probQCDbb+fj.ParticleNet_probQCDc+fj.ParticleNet_probQCDcc+fj.ParticleNet_probQCDothers))
+                         except:
+                              pass
                          fj_pn_xbb = 0
                          if (1.0 - fj.ParticleNetMD_probXcc - fj.ParticleNetMD_probXqq)>0:
                               fj_pn_xbb = fj.ParticleNetMD_probXbb/(1.0 - fj.ParticleNetMD_probXcc - fj.ParticleNetMD_probXqq)
@@ -534,7 +663,9 @@ class InputProducer(Module):
                     self.out.fillBranch("fj_H_WW_4q", 1 if (fj.dr_HWW_qqqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
                     self.out.fillBranch("fj_H_WW_elenuqq", 1 if (fj.dr_HWW_elenuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
                     self.out.fillBranch("fj_H_WW_munuqq", 1 if (fj.dr_HWW_munuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
-                    self.out.fillBranch("fj_H_WW_taunuqq", 1 if (fj.dr_HWW_taunuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
+                    self.out.fillBranch("fj_H_WW_mutaunuqq", 1 if (fj.dr_HWW_mutaunuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
+                    self.out.fillBranch("fj_H_WW_eletaunuqq", 1 if (fj.dr_HWW_eletaunuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
+                    self.out.fillBranch("fj_H_WW_hadtaunuqq", 1 if (fj.dr_HWW_hadtaunuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
 
                     # resonance mass
                     genRes_mass = -99
@@ -592,7 +723,8 @@ class InputProducer(Module):
                     # add whether W or W star are hadronic
                     self.out.fillBranch("fj_genW_decay", fj.genHWW_Wdecay if fj.genHWW_W else -99)
                     self.out.fillBranch("fj_genWstar_decay", fj.genHWW_Wstardecay if fj.genHWW_Wstar else -99)
-
+                    
+                    # add nprongs
                     self.out.fillBranch("fj_nProngs", fj.nProngs)
 
                     for key in self.pf_names:
@@ -601,28 +733,29 @@ class InputProducer(Module):
                          self.out.fillBranch(key, outputs['sv_features'][key])
 
                     # fill gen 
+                    notfilled_genjet=False
                     if is_genjet:
-                         notfilled_genjet=False
                          if self.jetType == "AK8":
                               if fj.genJetAK8Idx>0:
-                                   self.out.fillBranch("fj_genjetmass", genjets[fj.genJetAK8Idx].mass)
+                                   self.out.fillBranch("fj_genjetmass", genjets[fj.genJetAK8Idx-1].mass)
                               else:
                                    notfilled_genjet=True
                          if not self.jetType == "AK8" or notfilled_genjet:
-                              fj.genJ, fj.dr_genJ, fj.genJidx = closest(fj, genjets_sd)
+                              fj.genJ, fj.dr_genJ, fj.genJidx = closest(fj, genjets)
                               if fj.genJ:
                                    self.out.fillBranch("fj_genjetmass",fj.genJ.mass)
                               else:
                                    self.out.fillBranch("fj_genjetmass",-1)
+                    else:
+                         self.out.fillBranch("fj_genjetmass", 0)
 
-                         # since there is no index - make sure is matched
+                    if is_gensdjet:
                          fj.genJsd, fj.dr_genJsd, fj.genJsdidx = closest(fj, genjets_sd)
                          if fj.genJsd:
                               self.out.fillBranch("fj_genjetmsd", fj.genJsd.mass)
                          else:
                               self.out.fillBranch("fj_genjetmsd", -1)
                     else:
-                         self.out.fillBranch("fj_genjetmass", 0)
                          self.out.fillBranch("fj_genjetmsd", 0)
 
                     # fill evt info
@@ -649,4 +782,6 @@ def signedDeltaPhi(phi1, phi2):
     return dPhi
 
 inputProducer_AK8 = lambda : InputProducer()
+inputProducer_AK8_PFNano = lambda : InputProducer("AK8")
 inputProducer_AK15 = lambda : InputProducer("AK15")
+inputProducer_AK15_PFNano = lambda : InputProducer("AK15_PFNano")
