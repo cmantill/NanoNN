@@ -1,0 +1,55 @@
+{
+  "input_names": [
+    "pf_features",
+    "sv_features"
+  ],
+  "pf_features": {
+    "var_length": 100,
+    "var_names": [
+      "pfcand_pt_log_nopuppi",
+      "pfcand_e_log_nopuppi",
+      "pfcand_etarel",
+      "pfcand_phirel",
+      "pfcand_abseta",
+      "pfcand_eta",
+      "pfcand_phi",
+      "pfcand_charge",
+      "pfcand_isMu",
+      "pfcand_isEl",
+      "pfcand_isChargedHad",
+      "pfcand_isGamma",
+      "pfcand_isNeutralHad",
+      "pfcand_VTX_ass",
+      "pfcand_lostInnerHits",
+      "pfcand_normchi2",
+      "pfcand_quality",
+      "pfcand_dz",
+      "pfcand_dzsig",
+      "pfcand_dxy",
+      "pfcand_dxysig",
+      "pfcand_btagEtaRel",
+      "pfcand_btagPtRatio",
+      "pfcand_btagPParRatio",
+      "pfcand_btagSip3dVal",
+      "pfcand_btagSip3dSig",
+      "pfcand_btagJetDistVal"
+    ]
+  },
+  "sv_features": {
+    "var_length": 10,
+    "var_names": [
+      "sv_pt_log",
+      "sv_mass",
+      "sv_etarel",
+      "sv_phirel",
+      "sv_abseta",
+      "sv_ntracks",
+      "sv_normchi2",
+      "sv_dxy",
+      "sv_dxysig",
+      "sv_d3d",
+      "sv_d3dsig",
+      "sv_costhetasvpv"
+    ]
+  }
+}

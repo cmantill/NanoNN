@@ -42,7 +42,7 @@ class InputProducer(Module):
                pfcand_counts_branch = self.pfcands_counts,
           )
           self.pnTagger = ParticleNetJetTagsProducer(
-               os.path.expandvars('$CMSSW_BASE/src/PhysicsTools/NanoNN/data/ParticleNetHWW/input/V04/preprocess.json'),
+               os.path.expandvars('$CMSSW_BASE/src/PhysicsTools/NanoNN/data/ParticleNetHWW/input/V05/preprocess.json'),
           )
 
           self.n_pf = self.pnTagger.prep_params['pf_features']['var_length']
@@ -88,8 +88,9 @@ class InputProducer(Module):
           self.out.branch("fj_H_bb", "I", 1)
           self.out.branch("fj_H_cc", "I", 1)
           self.out.branch("fj_H_qq", "I", 1)
-          self.out.branch("fj_H_WW_4q", "I", 1) 
 
+          self.out.branch("fj_H_WW_unmatched", "I", 1)
+          self.out.branch("fj_H_WW_4q", "I", 1) 
           self.out.branch("fj_H_WW_elenuqq", "I", 1)
           self.out.branch("fj_H_WW_munuqq", "I", 1)
           self.out.branch("fj_H_WW_mutaunuqq", "I", 1)
@@ -102,7 +103,9 @@ class InputProducer(Module):
           self.out.branch("fj_nProngs", "I", 1)
           self.out.branch("fj_genRes_mass", "F", 1)
           self.out.branch("fj_genRes_pt", "F", 1)
-          
+          self.out.branch("fj_genX_pt", "F", 1)
+          self.out.branch("fj_genX_mass", "F", 1)
+
           self.out.branch("fj_dR_W", "F", 1)
           self.out.branch("fj_genW_pt", "F", 1)
           self.out.branch("fj_genW_eta", "F", 1)
@@ -198,19 +201,169 @@ class InputProducer(Module):
                     if dau.pdgId == gp.pdgId:
                          return getFinal(dau)
                return gp
+               
+          def getQCD(gp,hadGenPartons,lepGenBsPartons):
+               hadGenPartons.append(gp)
+               if abs(gp.pdgId) == 5:
+                    for idx in gp.dauIdx:
+                         dau = genparts[idx]
+                         if abs(dau.pdgId) == 511 or abs(dau.pdgId) == 521 or abs(dau.pdgId)==523:
+                              genB = getFinal(dau)
+                              if len(genB.dauIdx) > 0:
+                                   if isDecay(genB,11) or isDecay(genB,13):
+                                        lepGenBsPartons.append(genB)
+               return hadGenPartons, lepGenBsPartons
 
-          hadGenPartons = []
-          lepGenBsPartons = []
-          lepGenTops = []
-          hadGenTops = []
-          hadGenWs = []
-          lepGenWs = []
-          hadGenZs = []
-          bbGenHs = []
-          ccGenHs = []
-          qqGenHs = []
-          wwGenHs = []; wwGenHs_vec =[]
-          ttGenHs = []
+          def getTop(gp,lepGenTops,hadGenTops):
+               for idx in gp.dauIdx:
+                    dau = genparts[idx]
+                    if abs(dau.pdgId) == 24:
+                         genW = getFinal(dau)
+                         gp.genW = genW
+                         if isHadronicW(genW):
+                              hadGenTops.append(gp)
+                         else:
+                              lepGenTops.append(gp)
+                    elif abs(dau.pdgId) in (1, 3, 5):
+                         gp.genB = dau
+               return lepGenTops,hadGenTops
+
+          def getW(gp,hadGenWs,lepGenWs):
+               if isHadronicW(gp):
+                    hadGenWs.append(gp)
+               else:
+                    lepGenWs.append(gp)
+               return hadGenWs,lepGenWs
+
+          def getH(gp,hMomIdxs,bbGenHs,ccGenHs,qqGenHs,wwGenHs,wwGenHs_vec,ttGenHs,tauvs,TTGenHs,WWGenHs):
+               hMomIdxs.append(gp.genPartIdxMother)
+               if isDecay(gp,5):
+                    bbGenHs.append(gp)
+               elif isDecay(gp,15):
+                    taus = []
+                    for idx in gp.dauIdx:
+                         dau = genparts[idx]
+                         if abs(dau.pdgId) == 15:
+                              genTau = getFinal(dau)
+                              taus.append(genTau)
+                              if len(taus)==2: break
+                    if len(taus)==2:
+                         nEle=0; nMu=0;
+                         for t in taus:
+                              tau = ROOT.TLorentzVector();
+                              tau.SetPtEtaPhiM(t.pt, t.eta, t.phi, t.mass)
+                              find_lep = False
+                              for idx in t.dauIdx:
+                                   neutrino = ROOT.TLorentzVector()
+                                   tdau = genparts[idx]
+                                   if abs(tdau.pdgId) == 12:
+                                        # subtract neutrino from dau                                                                                                                                                                     
+                                        neutrino.SetPtEtaPhiM(tdau.pt, tdau.eta, tdau.phi, tdau.mass)
+                                        ndau = tau -neutrino
+                                        nEle+=1
+                                        tauvs.append(ndau)
+                                        find_lep = True
+                                        break
+                                   if abs(tdau.pdgId) == 14:
+                                        neutrino.SetPtEtaPhiM(tdau.pt, tdau.eta, tdau.phi, tdau.mass)
+                                        ndau = tau -neutrino
+                                        nMu+=1
+                                        tauvs.append(ndau)
+                                        find_lep = True
+                                        break
+                              if not find_lep:
+                                   tauvs.append(tau)
+                         key = None
+                         if nEle==1 and nMu==0: key = "elenuhad"
+                         if nMu==1 and nEle==0: key = "munuhad"
+                         if nEle==0 and nMu==0: key = "hadhad"
+                         ttGenHs.append(gp)
+                         if key:
+                              TTGenHs[key]['H'].append(gp)
+                              TTGenHs[key]['tau0'].append(tauvs[0])
+                              TTGenHs[key]['tau1'].append(tauvs[1])
+               elif isDecay(gp,24):
+                    ws = []
+                    daugenW = {'elenu':[],'munu':[],'qq':[],'taunu':[]}; w_vecs = [];
+                    for idx in gp.dauIdx:
+                         dau = genparts[idx]
+                         if abs(dau.pdgId) == 24:
+                              genW = getFinal(dau)
+                              ws.append(genW)
+                              if len(ws)==2: break
+                         elif abs(dau.pdgId) >= 11 and abs(dau.pdgId) < 13:
+                              daugenW['elenu'].append(getFinal(dau))
+                         elif abs(dau.pdgId) >= 13 and abs(dau.pdgId) < 15:
+                              daugenW['munu'].append(getFinal(dau))
+                         elif abs(dau.pdgId) >= 15 and abs(dau.pdgId) < 17:
+                              daugenW['taunu'].append(getFinal(dau))
+                         elif abs(dau.pdgId) > 0 and abs(dau.pdgId) < 6:
+                              daugenW['qq'].append(getFinal(dau))
+
+                    if len(ws)==1:
+                         w_vec = ROOT.TLorentzVector(); w_vec.SetPtEtaPhiM(ws[0].pt,ws[0].eta,ws[0].phi,ws[0].mass); w_vecs.append(w_vec)
+                         import copy
+                         for k,dpair in daugenW.items():
+                              for i in range(0,len(dpair),2):
+                                   d1 = ROOT.TLorentzVector(); d1.SetPtEtaPhiM(dpair[i].pt,dpair[i].eta,dpair[i].phi,dpair[i].mass)
+                                   d2 = ROOT.TLorentzVector(); d2.SetPtEtaPhiM(dpair[i+1].pt,dpair[i+1].eta,dpair[i+1].phi,dpair[i+1].mass)
+                                   genw = d1 + d2
+                                   w_vecs.append(genw)
+                                   w_gp = copy.copy(ws[0]);
+                                   w_gp.pt = genw.Pt(); w_gp.mass = genw.M(); w_gp.eta = genw.Eta(); w_gp.phi = genw.Phi();
+                                   w_gp.pdgId = w_gp.pdgId*-1;
+                                   w_gp.dauIdx = [dpair[i]._index,dpair[i+1]._index]
+                                   w_gp.genPartIdxMother = -1
+                                   w_gp._index = w_gp._index-1
+                                   ws.append(w_gp)
+
+                    if len(ws)==2:
+                         if(ws[0].mass < ws[1].mass):
+                              gp.genWstar = ws[0]
+                              gp.genW = ws[1]
+                         else:
+                              gp.genW = ws[0]
+                              gp.genWstar = ws[1]
+                         key = None
+                         if isHadronicW(gp.genW) and isHadronicW(gp.genWstar): 
+                              key = 'qqqq'
+                         elif ((isHadronicW(gp.genW) and isDecay(gp.genWstar,11)) or (isHadronicW(gp.genWstar) and isDecay(gp.genW,11))):
+                              key = "elenuqq"
+                         elif ((isHadronicW(gp.genW) and isDecay(gp.genWstar,13)) or (isHadronicW(gp.genWstar) and isDecay(gp.genW,13))): 
+                              key = "munuqq"
+                         elif ((isHadronicW(gp.genW) and isDecay(gp.genWstar,15)) or (isHadronicW(gp.genWstar) and isDecay(gp.genW,15))):
+                              for dautau in daugenW['taunu']:
+                                   if abs(dautau.pdgId)==15:
+                                        decays=[abs(genparts[idx].pdgId) for idx in dautau.dauIdx]
+                                        if 13 in decays: key = "mutaunuqq"
+                                        elif 11 in decays: key = "eletaunuqq"
+                                        else: key = "hadtaunuqq"
+                                   else: key='other'
+
+                         if key:
+                              wwGenHs.append(gp)
+                              WWGenHs[key]['H'].append(gp)
+                              WWGenHs[key]['W'].append(gp.genW)
+                              WWGenHs[key]['Wstar'].append(gp.genWstar)
+
+               else:
+                    # print('no decay for higgs')                                                                                                                                                                                        
+                    # print('tau ',isDecay(gp,15))                                                                                                                                                                                       
+                    # print('ele ',isDecay(gp,11))                                                                                                                                                                                       
+                    # print('mu ',isDecay(gp,13))                                                                                                                                                                                        
+                    # print('qq ',isHadronicW(gp))                                                                                                                                                                                       
+                    if isDecay(gp,4):
+                         ccGenHs.append(gp)
+                    if isDecay(gp,3) or isDecay(gp,2) or isDecay(gp,1):
+                         qqGenHs.append(gp)
+               return hMomIdxs,bbGenHs,ccGenHs,qqGenHs,wwGenHs,wwGenHs_vec,ttGenHs,tauvs,TTGenHs,WWGenHs
+                              
+          hadGenPartons = []; lepGenBsPartons = [];
+          lepGenTops = []; hadGenTops = [];
+          hadGenWs = []; lepGenWs = [];
+          hadGenZs = [];
+          hMomIdxs = [];
+          bbGenHs = []; ccGenHs = []; qqGenHs = []; wwGenHs = []; wwGenHs_vec =[]; ttGenHs = []; tauvs = [];
           TTGenHs = {'munuhad': {'H': [],'tau0': [], 'tau1': []},
                      'elenuhad': {'H': [],'tau0': [], 'tau1': []},
                      'hadhad': {'H': [],'tau0': [], 'tau1': []},
@@ -223,45 +376,21 @@ class InputProducer(Module):
                      'qqqq': {'H': [],'W': [], 'Wstar':[]},
                      'other': {'H': [],'W': [], 'Wstar':[]},
                 }
-
-
-          tauvs = []
           isQCD=True
           for gp in genparts:
                if gp.statusFlags & (1 << 13) == 0:
                     continue
 
                if abs(gp.pdgId) == 21 or abs(gp.pdgId) < 6:
-                    hadGenPartons.append(gp)
-                    if abs(gp.pdgId) == 5:
-                         for idx in gp.dauIdx:
-                              dau = genparts[idx]
-                              if abs(dau.pdgId) == 511 or abs(dau.pdgId) == 521 or abs(dau.pdgId)==523:
-                                   genB = getFinal(dau)
-                                   if len(genB.dauIdx) > 0:
-                                        if isDecay(genB,11) or isDecay(genB,13):
-                                             lepGenBsPartons.append(genB)
+                    hadGenPartons,lepGenBsPartons = getQCD(gp,hadGenPartons,lepGenBsPartons)
                                         
                if abs(gp.pdgId) == 6:
                     isQCD = False
-                    for idx in gp.dauIdx:
-                         dau = genparts[idx]
-                         if abs(dau.pdgId) == 24:
-                              genW = getFinal(dau)
-                              gp.genW = genW
-                              if isHadronicW(genW):
-                                   hadGenTops.append(gp)
-                              else:
-                                   lepGenTops.append(gp)
-                         elif abs(dau.pdgId) in (1, 3, 5):
-                              gp.genB = dau
+                    lepGenTops,hadGenTops = getTop(gp,lepGenTops,hadGenTops)
 
                elif abs(gp.pdgId) == 24:
                     isQCD = False
-                    if isHadronicW(gp):
-                         hadGenWs.append(gp)
-                    else:
-                         lepGenWs.append(gp)
+                    hadGenWs,lepGenWs = getW(gp, hadGenWs,lepGenWs)
 
                elif abs(gp.pdgId) == 23:
                     isQCD = False
@@ -270,136 +399,13 @@ class InputProducer(Module):
 
                elif abs(gp.pdgId) == 25:
                     isQCD = False
-                    ws = []
-                    # print gen parts
-                    #for idx in gp.dauIdx:
-                    #     print(genparts[idx].pdgId)
+                    hMomIdxs,bbGenHs,ccGenHs,qqGenHs,wwGenHs,wwGenHs_vec,ttGenHs,tauvs,TTGenHs,WWGenHs = getH(gp,hMomIdxs,bbGenHs,ccGenHs,qqGenHs,wwGenHs,wwGenHs_vec,ttGenHs,tauvs,TTGenHs,WWGenHs)
 
-                    if isDecay(gp,5):
-                         bbGenHs.append(gp)
-                         # print('found b')
-                    elif isDecay(gp,15):
-                         taus = []
-                         for idx in gp.dauIdx:
-                              dau = genparts[idx]
-                              if abs(dau.pdgId) == 15:
-                                   genTau = getFinal(dau)
-                                   taus.append(genTau)
-                                   if len(taus)==2: break
-                         if len(taus)==2:
-                              nEle=0; nMu=0;
-                              for t in taus:
-                                   tau = ROOT.TLorentzVector();
-                                   tau.SetPtEtaPhiM(t.pt, t.eta, t.phi, t.mass)
-                                   find_lep = False
-                                   for idx in t.dauIdx:
-                                        neutrino = ROOT.TLorentzVector()
-                                        tdau = genparts[idx]
-                                        if abs(tdau.pdgId) == 12:
-                                             # subtract neutrino from dau
-                                             neutrino.SetPtEtaPhiM(tdau.pt, tdau.eta, tdau.phi, tdau.mass)
-                                             ndau = tau -neutrino
-                                             nEle+=1
-                                             tauvs.append(ndau)
-                                             find_lep = True
-                                             break
-                                        if abs(tdau.pdgId) == 14:
-                                             neutrino.SetPtEtaPhiM(tdau.pt, tdau.eta, tdau.phi, tdau.mass)
-                                             ndau = tau -neutrino
-                                             nMu+=1
-                                             tauvs.append(ndau)
-                                             find_lep = True
-                                             break
-                                   if not find_lep:
-                                        tauvs.append(tau)
+          # get gp for mom of higgs
+          hMoms = []
+          for hmom in hMomIdxs:
+               hMoms.append(genparts[hmom])
 
-                              key = None
-                              if nEle==1 and nMu==0: key = "elenuhad"
-                              if nMu==1 and nEle==0: key = "munuhad"
-                              if nEle==0 and nMu==0: key = "hadhad"
-
-                              ttGenHs.append(gp)
-
-                              if key:
-                                   TTGenHs[key]['H'].append(gp)
-                                   TTGenHs[key]['tau0'].append(tauvs[0])
-                                   TTGenHs[key]['tau1'].append(tauvs[1])
-
-                    elif isDecay(gp,24):
-                         # print('found W')
-                         daugenW = {'elenu':[],'munu':[],'qq':[],'taunu':[]}; w_vecs = [];
-                         for idx in gp.dauIdx:
-                              dau = genparts[idx]
-                              if abs(dau.pdgId) == 24:
-                                   genW = getFinal(dau)
-                                   ws.append(genW)
-                                   if len(ws)==2: break
-                              elif abs(dau.pdgId) >= 11 and abs(dau.pdgId) < 13:
-                                   daugenW['elenu'].append(getFinal(dau))
-                              elif abs(dau.pdgId) >= 13 and abs(dau.pdgId) < 15:
-                                   daugenW['munu'].append(getFinal(dau))
-                              elif abs(dau.pdgId) >= 15 and abs(dau.pdgId) < 17:
-                                   daugenW['taunu'].append(getFinal(dau))
-                              elif abs(dau.pdgId) > 0 and abs(dau.pdgId) < 6:
-                                   daugenW['qq'].append(getFinal(dau))
-
-                         # print('ws ',ws,daugenW,w_vecs)
-                         if len(ws)==1:
-                              w_vec = ROOT.TLorentzVector(); w_vec.SetPtEtaPhiM(ws[0].pt,ws[0].eta,ws[0].phi,ws[0].mass); w_vecs.append(w_vec)
-                              import copy
-                              for k,dpair in daugenW.items():
-                                   for i in range(0,len(dpair),2):
-                                        d1 = ROOT.TLorentzVector(); d1.SetPtEtaPhiM(dpair[i].pt,dpair[i].eta,dpair[i].phi,dpair[i].mass)
-                                        d2 = ROOT.TLorentzVector(); d2.SetPtEtaPhiM(dpair[i+1].pt,dpair[i+1].eta,dpair[i+1].phi,dpair[i+1].mass)
-                                        genw = d1 + d2
-                                        w_vecs.append(genw)
-                                        w_gp = copy.copy(ws[0]);
-                                        w_gp.pt = genw.Pt(); w_gp.mass = genw.M(); w_gp.eta = genw.Eta(); w_gp.phi = genw.Phi();
-                                        w_gp.pdgId = w_gp.pdgId*-1; 
-                                        w_gp.dauIdx = [dpair[i]._index,dpair[i+1]._index]
-                                        w_gp.genPartIdxMother = -1
-                                        w_gp._index = w_gp._index-1
-                                        ws.append(w_gp)
-                              # print(isHadronicW(ws[0]),isDecay(ws[0],11),isDecay(ws[0],13),isDecay(ws[0],15))
-
-                         if len(ws)==2:
-                              if(ws[0].mass < ws[1].mass):
-                                   gp.genWstar = ws[0]
-                                   gp.genW = ws[1]
-                              else:
-                                   gp.genW = ws[0]
-                                   gp.genWstar = ws[1]
-                              key = None
-                              if isHadronicW(gp.genW) and isHadronicW(gp.genWstar): key = 'qqqq'
-                              elif ((isHadronicW(gp.genW) and isDecay(gp.genWstar,11)) or (isHadronicW(gp.genWstar) and isDecay(gp.genW,11))): key = "elenuqq"
-                              elif ((isHadronicW(gp.genW) and isDecay(gp.genWstar,13)) or (isHadronicW(gp.genWstar) and isDecay(gp.genW,13))): key = "munuqq"
-                              elif ((isHadronicW(gp.genW) and isDecay(gp.genWstar,15)) or (isHadronicW(gp.genWstar) and isDecay(gp.genW,15))): 
-                                   for dautau in daugenW['taunu']:
-                                        if abs(dautau.pdgId)==15:
-                                             decays=[abs(genparts[idx].pdgId) for idx in dautau.dauIdx]
-                                             if 13 in decays: key = "mutaunuqq"
-                                             elif 11 in decays: key = "eletaunuqq"
-                                             else: key = "hadtaunuqq"
-                              else: key='other'
-
-                              if key:
-                                   wwGenHs.append(gp)
-                                   WWGenHs[key]['H'].append(gp)
-                                   WWGenHs[key]['W'].append(gp.genW)
-                                   WWGenHs[key]['Wstar'].append(gp.genWstar)
-                    else:
-                         # print('no decay for higgs')
-                         # print('tau ',isDecay(gp,15))
-                         # print('ele ',isDecay(gp,11))
-                         # print('mu ',isDecay(gp,13))
-                         # print('qq ',isHadronicW(gp))
-                         if isDecay(gp,4):
-                              ccGenHs.append(gp)
-                         if isDecay(gp,3) or isDecay(gp,2) or isDecay(gp,1):
-                              qqGenHs.append(gp)
-                         #for idx in gp.dauIdx:
-                         #     print(genparts[idx].pdgId)
-                              
           for parton in itertools.chain(lepGenTops, hadGenTops):
                parton.daus = (parton.genB, genparts[parton.genW.dauIdx[0]], genparts[parton.genW.dauIdx[1]])
                parton.genW.daus = parton.daus[1:]
@@ -421,6 +427,7 @@ class InputProducer(Module):
           # print('h to ww ',WWGenHs,', h to bb ',bbGenHs)
 
           for ifj,fj in enumerate(fatjets):
+               fj.genHmom, fj.dr_Hmom, fj.genHmomidx = closest(fj, hMoms)
                fj.genZ, fj.dr_Z, fj.genZidx = closest(fj, hadGenZs)
                fj.genW, fj.dr_W, fj.genWidx = closest(fj, hadGenWs)
                fj.genLepW, fj.dr_LepW, fj.genLepWidx = closest(fj, lepGenWs)
@@ -660,12 +667,23 @@ class InputProducer(Module):
                     ## WW 
                     dr_HWW_W = fj.dr_HWW_W if fj.dr_HWW_W else 99
                     dR_HWW_Wstar = fj.dr_HWW_Wstar if fj.dr_HWW_Wstar else 99
-                    self.out.fillBranch("fj_H_WW_4q", 1 if (fj.dr_HWW_qqqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
-                    self.out.fillBranch("fj_H_WW_elenuqq", 1 if (fj.dr_HWW_elenuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
-                    self.out.fillBranch("fj_H_WW_munuqq", 1 if (fj.dr_HWW_munuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
-                    self.out.fillBranch("fj_H_WW_mutaunuqq", 1 if (fj.dr_HWW_mutaunuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
-                    self.out.fillBranch("fj_H_WW_eletaunuqq", 1 if (fj.dr_HWW_eletaunuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
-                    self.out.fillBranch("fj_H_WW_hadtaunuqq", 1 if (fj.dr_HWW_hadtaunuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0)
+                    fj_H_WW_4q = 1 if (fj.dr_HWW_qqqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0
+                    fj_H_WW_elenuqq = 1 if (fj.dr_HWW_elenuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0
+                    fj_H_WW_munuqq = 1 if (fj.dr_HWW_munuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0
+                    fj_H_WW_mutaunuqq = 1 if (fj.dr_HWW_mutaunuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0
+                    fj_H_WW_eletaunuqq = 1 if (fj.dr_HWW_eletaunuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0
+                    fj_H_WW_hadtaunuqq = 1 if (fj.dr_HWW_hadtaunuqq < self.jet_r and dr_HWW_W < self.jet_r and dR_HWW_Wstar < self.jet_r) else 0
+                    if fj.genHww:
+                         fj_H_WW_unmatched = 1 if (fj_H_WW_4q==0 and fj_H_WW_elenuqq==0 and fj_H_WW_munuqq==0 and fj_H_WW_mutaunuqq==0 and fj_H_WW_eletaunuqq==0 and fj_H_WW_hadtaunuqq==0) else 0
+                    else:
+                         fj_H_WW_unmatched = 1
+                    self.out.fillBranch("fj_H_WW_4q", fj_H_WW_4q)
+                    self.out.fillBranch("fj_H_WW_elenuqq", fj_H_WW_elenuqq)
+                    self.out.fillBranch("fj_H_WW_munuqq", fj_H_WW_munuqq)
+                    self.out.fillBranch("fj_H_WW_mutaunuqq", fj_H_WW_mutaunuqq)
+                    self.out.fillBranch("fj_H_WW_eletaunuqq", fj_H_WW_eletaunuqq)
+                    self.out.fillBranch("fj_H_WW_hadtaunuqq", fj_H_WW_hadtaunuqq)
+                    self.out.fillBranch("fj_H_WW_unmatched",  fj_H_WW_unmatched)
 
                     # resonance mass
                     genRes_mass = -99
@@ -702,6 +720,8 @@ class InputProducer(Module):
                          genRes_pt = fj.genLepW.pt
                     self.out.fillBranch("fj_genRes_mass", genRes_mass)
                     self.out.fillBranch("fj_genRes_pt", genRes_pt)
+                    self.out.fillBranch("fj_genX_pt", fj.genHmom.pt if fj.genHmom else -99)
+                    self.out.fillBranch("fj_genX_mass", fj.genHmom.mass if fj.genHmom else -99)
 
                     # dR of W, Wstar, and daus
                     self.out.fillBranch("fj_dR_W", dr_HWW_W)
