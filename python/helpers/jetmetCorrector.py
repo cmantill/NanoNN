@@ -40,8 +40,9 @@ class JetCorrector(object):
         if applyResidual:
             self.jecLevels += ['L2L3Residual']
         self.vPar = ROOT.vector(ROOT.JetCorrectorParameters)()
-        #logger.info('Init JetCorrector: %s, %s, %s', globalTag, jetType, str(self.jecLevels))
+        #logger.info('Init JetCorrector: %s, %s, %s', globalTag, jetType, str(self.jecLevels), jecPath)
         for level in self.jecLevels:
+            #print(os.path.join(jecPath, "%s_%s_%s.txt" % (globalTag, level, jetType)), "")
             self.vPar.push_back(ROOT.JetCorrectorParameters(os.path.join(
                 jecPath, "%s_%s_%s.txt" % (globalTag, level, jetType)), ""))
         self.corrector = ROOT.FactorizedJetCorrector(self.vPar)
@@ -163,6 +164,7 @@ class JetMETCorrector(object):
                                      copy_txt_with_prefix=self.jes_uncertainty_file_prefix)
 
             # updating JEC/re-correct MET
+            #print(self.globalTag,self.jetType,self.jesInputFilePath)
             self.jetCorrectorMC = JetCorrector(globalTag=self.globalTag,
                                                jetType=self.jetType,
                                                jecPath=self.jesInputFilePath,
@@ -284,8 +286,12 @@ class JetMETCorrector(object):
                 self.jesUncertainty.setJetEta(j.eta)
                 delta = self.jesUncertainty.getUncertainty(True)
                 j._jesUncFactor = 1 + delta if self.jes == 'up' else 1 - delta
+                #jpt_before = j.pt
+                #jmass_before = j.mass
                 j.pt *= j._jesUncFactor
                 j.mass *= j._jesUncFactor
+                #if 'EC2' in self.jes_source and jpt_before>250:
+                #    print('JES source %s%s jeta %.2f unc %.4f: jpt %.2f=>%.2f jmass %.2f=>%.2f '%(self.jes_source,self.jes,j.eta,delta,jpt_before,j.pt,jmass_before,j.mass))
 
             # set uncertainty due to HEM15/16 issue
             j._HEMUncFactor = 1

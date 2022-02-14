@@ -422,6 +422,7 @@ class hh4bProducer(Module):
                 self.out.branch("hh_pt" + "_" +syst, "F")
                 self.out.branch("hh_eta" + "_" +syst, "F")
                 self.out.branch("hh_mass" + "_" + syst, "F")
+                self.out.branch("hh_mass_MassRegressed" + "_" + syst, "F")
 
         self.out.branch("deltaEta_j1j2", "F")
         self.out.branch("deltaPhi_j1j2", "F")
@@ -765,7 +766,7 @@ class hh4bProducer(Module):
             event.fatjetsJME = {}
             event.vbfak4jetsJME = {}
             for syst in self._jmeLabels:
-                # if syst == 'nominal': continue
+                if syst == 'nominal': continue
                 ptordered = sorted(event._FatJets[syst], key=lambda x: x.pt, reverse=True)
                 xbbordered = sorted(event._FatJets[syst], key=lambda x: x.Xbb, reverse = True) 
                 event.fatjetsJME[syst] = [fj for fj in xbbordered if fj.pt > 200 and abs(fj.eta) < 2.4 and (fj.jetId & 2)]
@@ -1128,34 +1129,33 @@ class hh4bProducer(Module):
 
     def fillFatJetInfoJME(self, event, fatjets):
         if not self._allJME or not self.isMC: return
-        if len(fatjets)>=2:
-            h1Jet = polarP4(fatjets[0],mass='regressed_massJMS')
-            h2Jet = polarP4(fatjets[1],mass='regressed_massJMS')
-            print('fatjets hh_mass %.4f jet1pt %.4f jet2pt %.4f'%((h1Jet+h2Jet).M(),fatjets[0].pt,fatjets[1].pt))
+        #if len(fatjets)>=2:
+        #    h1Jet = polarP4(fatjets[0],mass='regressed_massJMS')
+        #    h2Jet = polarP4(fatjets[1],mass='regressed_massJMS')
+        #    print('fatjets hh_mass %.4f jet1pt %.4f jet2pt %.4f'%((h1Jet+h2Jet).M(),fatjets[0].pt,fatjets[1].pt))
         for syst in self._jmeLabels:
-            if syst == 'nominal': 
-                if len(event.fatjetsJME[syst]) >= 2 or len(fatjets)>=2:
-                    h1Jet = polarP4(event.fatjetsJME[syst][0],mass='regressed_massJMS')
-                    h2Jet = polarP4(event.fatjetsJME[syst][1],mass='regressed_massJMS')
-                    print('Nominal hh_mass %.4f jet1pt %.4f jet2pt %.4f'%((h1Jet+h2Jet).M(),event.fatjetsJME[syst][0].pt,event.fatjetsJME[syst][1].pt))
-                    continue
+            if syst == 'nominal': continue
             if len(event.fatjetsJME[syst]) < 2 or len(fatjets)<2: 
                 self.out.fillBranch("hh_pt" + "_" + syst, 0)
                 self.out.fillBranch("hh_eta" + "_" + syst, 0)
                 self.out.fillBranch("hh_mass" + "_" + syst, 0)
+                self.out.fillBranch("hh_mass_MassRegressed" + "_" + syst, 0)
                 for idx in ([1, 2]):
                     prefix = 'fatJet%i' % idx
                     self.out.fillBranch(prefix + "Pt" + "_" + syst, 0)
                     self.out.fillBranch(prefix + "PtOverMHH" + "_" + syst, 0)
             else:
-                h1Jet = polarP4(event.fatjetsJME[syst][0],mass='regressed_massJMS')
-                h2Jet = polarP4(event.fatjetsJME[syst][1],mass='regressed_massJMS')
+                h1Jet = polarP4(event.fatjetsJME[syst][0],mass='msoftdropJMS')
+                h2Jet = polarP4(event.fatjetsJME[syst][1],mass='msoftdropJMS')
                 self.out.fillBranch("hh_pt" + "_" + syst, (h1Jet+h2Jet).Pt())
                 self.out.fillBranch("hh_eta" + "_" + syst, (h1Jet+h2Jet).Eta())
                 self.out.fillBranch("hh_mass" + "_" + syst, (h1Jet+h2Jet).M())
+                h1Jet_reg = polarP4(event.fatjetsJME[syst][0],mass='regressed_massJMS')
+                h2Jet_reg = polarP4(event.fatjetsJME[syst][1],mass='regressed_massJMS')
+                self.out.fillBranch("hh_mass_MassRegressed" + "_" + syst, (h1Jet_reg+h2Jet_reg).M())
 
-                if 'EC2' in syst:
-                    print('%s hh_mass %.4f jet1pt %.4f jet2pt %.4f'%(syst,(h1Jet+h2Jet).M(),event.fatjetsJME[syst][0].pt,event.fatjetsJME[syst][1].pt))
+                #if 'EC2' in syst:
+                #    print('%s hh_mass %.4f jet1pt %.4f jet2pt %.4f'%(syst,(h1Jet+h2Jet).M(),event.fatjetsJME[syst][0].pt,event.fatjetsJME[syst][1].pt))
 
                 for idx in ([1, 2]):
                     prefix = 'fatJet%i' % idx
@@ -1211,8 +1211,8 @@ class hh4bProducer(Module):
             if syst == 'nominal': continue
             isVBFtag = 0
             if len(event.vbfak4jetsJME[syst])>1 and len(jets)>1:
-                Jet1 = polarP4(event.vbfak4jetsJME[0])
-                Jet2 = polarP4(event.vbfak4jetsJME[1])
+                Jet1 = polarP4(event.vbfak4jetsJME[syst][0])
+                Jet2 = polarP4(event.vbfak4jetsJME[syst][1])
                 isVBFtag = 0
                 if((Jet1+Jet2).M() > 500. and abs(Jet1.Eta() - Jet2.Eta()) > 4): isVBFtag = 1
             self.out.fillBranch('isVBFtag' + "_" + syst, isVBFtag)
