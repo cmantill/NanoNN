@@ -40,7 +40,7 @@ class JetCorrector(object):
         if applyResidual:
             self.jecLevels += ['L2L3Residual']
         self.vPar = ROOT.vector(ROOT.JetCorrectorParameters)()
-        #logger.info('Init JetCorrector: %s, %s, %s', globalTag, jetType, str(self.jecLevels), jecPath)
+        #print('Init JetCorrector:', globalTag, jetType, str(self.jecLevels), jecPath)
         for level in self.jecLevels:
             #print(os.path.join(jecPath, "%s_%s_%s.txt" % (globalTag, level, jetType)), "")
             self.vPar.push_back(ROOT.JetCorrectorParameters(os.path.join(
@@ -164,7 +164,7 @@ class JetMETCorrector(object):
                                      copy_txt_with_prefix=self.jes_uncertainty_file_prefix)
 
             # updating JEC/re-correct MET
-            #print(self.globalTag,self.jetType,self.jesInputFilePath)
+            #print('JES source  ',self.jes,'JEC corrector MC ',self.globalTag,self.jetType,self.jesInputFilePath)
             self.jetCorrectorMC = JetCorrector(globalTag=self.globalTag,
                                                jetType=self.jetType,
                                                jecPath=self.jesInputFilePath,
@@ -194,6 +194,7 @@ class JetMETCorrector(object):
         # set up JER
         self.jetSmearer = None
         if self.jer is not None or self.jmr is not None:
+            #print('jes source ',self.jes_source,' jet smearer ',self.jerTag,self.jetType)
             self.jetSmearer = jetSmearer(self.jerTag, jetType=self.jetType)
             self.jetSmearer.beginJob()
 
@@ -265,6 +266,8 @@ class JetMETCorrector(object):
                 j._jecFactor = jetCorrector.getCorrection(j, rho)
                 if self.jec:
                     j.pt = j.rawP4.pt() * j._jecFactor
+                    #if 'EC2' in self.jes_source:
+                    #    print('jecFactor ',j._jecFactor)
                     j.mass = j.rawP4.mass() * j._jecFactor
                 if met is not None:
                     j._jecFactorL1 = jetCorrector.getCorrection(j, rho, 'L1FastJet')
@@ -277,6 +280,8 @@ class JetMETCorrector(object):
                 j._smearFactorNominal = _sf(jerFactors)
                 j._smearFactor = _sf(jerFactors, self.jer)
                 j.pt *= j._smearFactor
+                #if 'EC2' in self.jes_source:
+                #    print('smearFactor ',j._smearFactor)
                 j.mass *= j._smearFactor
 
             # set JES uncertainty ( = varied-Pt / Pt)
@@ -286,16 +291,19 @@ class JetMETCorrector(object):
                 self.jesUncertainty.setJetEta(j.eta)
                 delta = self.jesUncertainty.getUncertainty(True)
                 j._jesUncFactor = 1 + delta if self.jes == 'up' else 1 - delta
-                #jpt_before = j.pt
-                #jmass_before = j.mass
+                jpt_before = j.pt
+                jmass_before = j.mass
                 j.pt *= j._jesUncFactor
                 j.mass *= j._jesUncFactor
-                #if 'EC2' in self.jes_source and jpt_before>250:
+                #if 'EC2' in self.jes_source and jpt_before>427 and j.pt < 429:
+                #    print('JES source %s%s jeta %.2f unc %.4f: jpt %.2f=>%.2f jmass %.2f=>%.2f '%(self.jes_source,self.jes,j.eta,delta,jpt_before,j.pt,jmass_before,j.mass))
+                #if 'EC2' in self.jes_source and jpt_before>250 and delta>0 and abs(j.eta)<=2.4:
                 #    print('JES source %s%s jeta %.2f unc %.4f: jpt %.2f=>%.2f jmass %.2f=>%.2f '%(self.jes_source,self.jes,j.eta,delta,jpt_before,j.pt,jmass_before,j.mass))
 
             # set uncertainty due to HEM15/16 issue
             j._HEMUncFactor = 1
             if isMC and self.applyHEMUnc:
+                #print('apply HEM unc')
                 if j.pt > 15 and j.phi > -1.57 and j.phi < -0.87:
                     try:
                         tightId = j.jetId & 2
